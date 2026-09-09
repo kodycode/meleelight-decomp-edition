@@ -413,9 +413,16 @@ export function executeArticleHits (input){
                 // :698), and a shielding fighter is grounded, so it goes through
                 // the grounded channel and picks up the floor-tangent
                 // projection rather than being written straight to cVel.x.
-                setGroundVelocity(v,
-                  aArticles[a].instance.pos.x < player[v].phys.pos.x
-                    ? victimPush : -victimPush);
+                // Same direction rule as the hit resolution below: push along
+                // the way the article was FIRED, not according to where it
+                // happens to be. A laser that crosses the shielder's centre
+                // inside one frame would otherwise shove them backwards into
+                // the shot.
+                const pushFace = aArticles[a].face;
+                const pushFromLeft = (pushFace === undefined)
+                  ? aArticles[a].instance.pos.x < player[v].phys.pos.x
+                  : pushFace > 0;
+                setGroundVelocity(v, pushFromLeft ? victimPush : -victimPush);
             }
 
             actionStates[characterSelections[v]].GUARD.init(v,input);

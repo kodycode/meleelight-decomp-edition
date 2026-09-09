@@ -81,3 +81,7 @@ tools/dat/
 *.dol
 *.dat
 !src/**/*.dat
+
+# Python bytecode from the tools
+__pycache__/
+*.pyc

@@ -160,47 +160,43 @@ by what they touch rather than chronologically.
 - **Universal Controller Fix** (`src/physics/ucf.js`) behind a toggle, off by
   default — it is a community mod, not vanilla, and is marked as such.
 
-## Gameplay differences
+## Gameplay
 
-How this fork plays differently from base Melee Light. Each entry is what the
-game does now, against what it did before.
+Base Melee Light already reproduced Melee by eye and by hand, well enough that
+it plays like Melee. What this fork changes is **where the numbers come from** —
+hand-tuned approximations replaced with values read out of the game, and
+hand-written logic replaced with the decompiled routine. Below is what that
+gives you.
 
-- **Dash dancing.** Pivot momentum now fully reverses and the redash and
-  smash-turn windows come from `ftCo_Dash_IASA`. Previously a pivot stalled the
-  dash rather than carrying it through.
-- **Tap jump gives one jump.** Holding up off the ground used to spend the
-  grounded jump and the double jump together. Pressing X on the takeoff frame
-  still gives an instant double jump, as it does in Melee.
-- **Getting up from a ledge works.** Rolling or attacking off the ledge used to
-  push the fighter back down onto it.
-- **Sliding stops at the right distance.** Melee doubles ground friction above
-  walk speed, so wavedashes, dash stops, shield slides out of a run and
-  knockdown slides all carried noticeably too far before. Grabs are the
-  exception and use plain traction.
-- **The dash grab exists.** Melee has two grabs — a 30-frame standing grab from
-  jumpsquat and a 40-frame dash grab from dash and run. Base Melee Light had
-  only the standing one, which meant every run grab was already the fast one
-  and jump-cancel grabbing bought nothing. Both now exist, with the dash grab's
-  animation, hitboxes, hurtboxes and frame data generated from the disc, and
-  grab beats shield out of a dash so the tech is reachable.
-- **Hurtboxes follow the character.** They are capsules riding bones now, per
-  frame, rather than one fixed rectangle around the fighter — visible with the
-  hurtbox display toggle, and used for hit detection.
-- **Fox and Falco's Illusion travels flat.** It used to slope downward and lose
-  height, which cost it distance off a ledge.
-- **Falco's Phantasm has its own knockback**, including the downward aerial
-  angle that defines the move. It previously used Fox's Illusion values.
-- **Falcon Kick's air recovery, Falcon Punch's windup slide and Marth's
-  Dolphin Slash ground slide** all move the fighter. None of them did.
-- **Jigglypuff's Rollout is playable.** Releasing it used to crash the game,
-  and its grounded hitboxes now carry the grounded values rather than the
-  aerial ones.
-- **Projectiles knock you the way they are travelling.** A laser that crossed
-  your centre within a single frame used to knock you backwards into the shot.
-- **Character data is no longer shared where Melee differs.** Several values
-  had been duplicated between characters — Falco's dash-attack travel and his
-  up-smash and ledge-jump durations from Fox, Jigglypuff's ledge-jump duration
-  from her own quick variant, Fox's dash-attack table from Jigglypuff.
+- **Dash dancing** driven by `ftCo_Dash_IASA` and the disc's own constants:
+  pivot momentum, the redash window and the smash-turn condition.
+- **Ground friction** that doubles above walk speed the way Melee's does, so
+  wavedashes, dash stops, shield slides and knockdown slides travel the
+  distances they travel in Melee. Grabs use plain traction, as Melee does.
+- **Hurtboxes as per-frame capsules riding the bones** — the volumes Melee
+  actually tests hitboxes against, moving with every frame of every animation,
+  in place of a single fixed rectangle. Depth is kept, because limbs swing
+  further through it than a hitbox's own radius.
+- **Tap jump on Melee's own rule** — threshold plus the stick-tilt timer, with
+  the timer stamped expired on takeoff, so one flick gives one jump while a
+  pressed X on the same frame still gives a double jump.
+- **Both grabs.** Melee has a 30-frame standing grab from jumpsquat and a
+  40-frame dash grab from dash and run; base had only the standing one, so
+  every run grab was already the fast one. Both exist here, with the dash
+  grab's animation, hitboxes, hurtboxes and frame data generated from the disc,
+  and grab beats shield out of a dash — which is what makes jump-cancel
+  grabbing worth doing.
+- **Ledge states on Melee's ledge-specific collision** rather than the general
+  ground/wall resolver.
+- **Character-accurate specials** — Falco's Phantasm carries its own knockback
+  including the downward aerial angle, Fox and Falco's Illusion travels flat,
+  and Falcon Kick's air recovery, Falcon Punch's windup and Marth's Dolphin
+  Slash all carry the fighter the distance the animation says.
+- **Projectile knockback along the direction of travel**, so a laser sends you
+  the way it was fired regardless of how fast it crossed you — the same rule
+  applied to shield pushback.
+- **Per-character values derived per character.** Where Melee gives two
+  characters different numbers, they now have different numbers.
 
 ## Additions
 
@@ -242,8 +238,56 @@ Things this fork adds that base Melee Light does not have at all.
 - **0 npm vulnerabilities**, with the shipped bundle containing only `howler`,
   `jquery`, `localforage` and `pako`.
 
-## Known gaps
+## Known issues
 
-`TODO-rootmotion.md` tracks what is measured but not yet ported, what was
-checked and found already correct, and what should *not* be "fixed" — including
-several cases where the disc data looks wrong at a glance and is not.
+This is a work in progress and is not a finished, faithful Melee. What is
+listed here is what is known to be incomplete — it is not exhaustive, and
+anything not covered by a check in `npm test` should be assumed unverified.
+
+**Many attacks still need polish.** The port went depth-first through movement,
+collision and the shared systems. Individual moves were only touched where they
+came up, so a great deal of per-move behaviour is still base Melee Light's
+hand-tuned version: IASA windows, autocancel points, landing lag, hitbox
+timings on moves nobody has checked, and the shape of the velocity curves
+inside specials. Hitbox *values* are corroborated in bulk against the disc, but
+a move's feel is more than its hitbox. Expect rough edges, especially on
+character-specific specials.
+
+**Coverage is partial by construction.**
+
+- Roughly 210-230 action states per character have no generated hurtbox data —
+  they fall back to the old rectangle. The generator only emits a state it can
+  map to a subaction *and* give a frame count.
+- 159 character/state pairs are skipped by the hurtbox alignment check because
+  they have no animation art.
+- Marth's cape is simulated at runtime rather than animated, and a handful of
+  his poses are still generated rather than traced.
+
+**Open questions.**
+
+- **Gravity "feels floaty" to some players.** Gravity itself is ruled out: all
+  212 character attributes match the disc, the fall routine is a faithful
+  `ftCommon_Fall`, and measured jump arcs are exact per frame. If something is
+  off it is more likely aerial friction, fastfall engagement, or a state
+  applying gravity where it should not.
+- One knockback measurement on Fox's laser could not be explained and could not
+  be reproduced cleanly; see `TODO-rootmotion.md` before changing anything
+  there.
+
+**Not ported.**
+
+- **Environmental collision** (`mpcoll.c`) is still Melee Light's own. This is
+  the largest single gap — it underpins ledges, walls, ceilings and platform
+  edges, and validating it properly needs a Dolphin TAS replay to compare
+  against.
+- **Netplay** is disabled and untouched. It predates all of this and has not
+  been tested against any of the changes.
+- The frame loop is driven by `requestAnimationFrame`, so a backgrounded tab
+  stops advancing entirely.
+- Several root-motion states are measured but deliberately not wired, and a few
+  `_Phys` families were never surveyed.
+
+**`TODO-rootmotion.md`** carries the detailed list: what is measured and not
+yet ported, what was checked and found already correct, and what should *not*
+be changed — including several cases where the disc data looks wrong at a
+glance and is not.
