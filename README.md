@@ -12,8 +12,7 @@ constant or a per-frame table appears in this fork it was read out of the game,
 and the port that uses it cites the decomp function it came from — file and
 line — in a comment next to the code.
 
-![Starting Scene](https://raw.githubusercontent.com/amilajack/meleelight/master/screenshots/starting.png)
-![Gameplay Scene](https://raw.githubusercontent.com/amilajack/meleelight/master/screenshots/scene.png)
+<img width="2552" height="1226" alt="image" src="https://github.com/user-attachments/assets/bd56cb10-e11a-4de0-84f3-34e783fdc1d8" />
 
 ## Credits
 
