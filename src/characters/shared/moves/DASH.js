@@ -68,20 +68,47 @@ export default {
       dashPhysics(p, input);
     }
   },
-  // Dash interrupts do NOT cut momentum. meleelight used to scale velocity to
-  // 25% when dashing into shield, forward smash or smash turn. Melee has no
-  // such step -- each target state simply runs ordinary ground friction:
+  // SOME dash interrupts cut momentum to 25%, and which ones is decided by
+  // CONTROL FLOW rather than by the target state.
   //
-  //   dash -> shield      ftCo_GuardOn_Phys calls ft_80084F3C (ftCo_Guard.c:481)
-  //   dash -> fsmash      ftCo_AttackS4 doEnter only sets flags and the motion
-  //                       state (ftCo_AttackS4.c:170)
-  //   dash -> smash turn  ftCo_Turn_Enter_Smash likewise (ftCo_Turn.c:173)
+  // ftCo_Dash_IASA ends with (ftCo_Dash.c:137):
   //
-  // and meleelight's GUARDON, FORWARDSMASH and SMASHTURN all already call
-  // reduceByTraction, which IS ft_80084F3C. So the 0.25 was an extra cut on
-  // top of friction, and dropping it restores the slide these transitions are
-  // supposed to keep -- notably smash turn, where preserving dash momentum is
-  // what makes pivoting work at all.
+  //     float friction = ft_GetGroundFrictionMultiplier(fp);   // 1.0 on normal ground
+  //     float temp_f0  = fp->gr_vel * p_ftCommonData->x54;     // x54 = 0.75
+  //     fp->gr_vel += -temp_f0 * friction;                     // gr_vel *= 0.25
+  //
+  // Whether a transition reaches that block depends on whether its branch
+  // RETURNS. The ones that fall through get the cut:
+  //
+  //   shield        the `if (ftCo_80091AD8(...)) { }` body is EMPTY, so control
+  //                 falls out of the chain (ftCo_Dash.c:113); the late-dash
+  //                 branch does the same after ftCo_80091B9C (:124)
+  //   forward smash ftCo_AttackS4_8008C114 succeeding skips the `goto
+  //                 block_42` and falls out (ftCo_Dash.c:94)
+  //   smash turn    the pivot condition skips the shield block entirely (:111)
+  //   re-dash       likewise (:123)
+  //   side-B        ftCo_SpecialS_CheckInput succeeding skips the whole
+  //                 inner block in branches 1 and 2         (:88, 103)
+  //   side taunt    ftCo_800DE9D8 (ftCo_AppealS.c:43) succeeding skips
+  //                 block_42's body                             (:127)
+  //
+  // and the ones that return do NOT:
+  //
+  //   dash grab     RETURN_IF(ftCo_800D8A38(gobj))              (:91, 105, 121)
+  //   dash attack   explicit `return` after SetMv0              (:108)
+  //   jump          RETURN_IF(fn_800CAF78) (ftCo_Jump.c:62)     (:129)
+  //   run           RETURN_IF(fn_800CA5F0) (ftCo_Run.c:22)      (:131)
+  //
+  // Walk and run reach shield by a different route and keep their momentum:
+  // ftCo_Walk_IASA is RETURN_IF(ftCo_80091A4C) (ftCo_Walk.c:97), and
+  // ftCo_Run_IASA returns after setting two guard timers (ftCo_Run.c:116).
+  // Neither has a decay, so only the DASH transitions above get the cut.
+  //
+  // An earlier pass here removed the cut outright on the reasoning that "an
+  // ordinary dash frame never reaches the decay". That is true of ordinary
+  // frames -- block_42 ends in an unconditional return -- but not of the
+  // transitions above, which fall through deliberately. Base Melee Light's
+  // 0.25 was this constant, arrived at by measurement rather than derivation.
   interrupt : function(p,input){
     const j = checkForJump(p,input);
     // GRAB BEFORE SHIELD. Every branch of ftCo_Dash_IASA reaches
@@ -99,15 +126,19 @@ export default {
       return true;
     }
     else if (input[p][0].l || input[p][0].r){
+      dashIASADecay(p);
       actionStates[characterSelections[p]].GUARDON.init(p,input);
       return true;
     }
     else if (input[p][0].lA > 0 || input[p][0].rA > 0){
+      dashIASADecay(p);
       actionStates[characterSelections[p]].GUARDON.init(p,input);
       return true;
     }
     else if (input[p][0].a && !input[p][1].a){
       if (player[p].timer < 4 && input[p][0].lsX*player[p].phys.face >= 0.8){
+        // Falls through to the decay; dash attack below returns and does not.
+        dashIASADecay(p);
         actionStates[characterSelections[p]].FORWARDSMASH.init(p,input);
       }
       else {
@@ -121,6 +152,9 @@ export default {
     }
     else if (input[p][0].b && !input[p][1].b && Math.abs(input[p][0].lsX) > 0.6){
       player[p].phys.face = Math.sign(input[p][0].lsX);
+      // Falls through to the decay in branches 1 and 2. The specials overwrite
+      // gr_vel on entry, so this is control-flow fidelity, not a visible cut.
+      dashIASADecay(p);
       if (player[p].phys.grounded){
         actionStates[characterSelections[p]].SIDESPECIALGROUND.init(p,input);
       }
@@ -130,6 +164,7 @@ export default {
       return true;
     }
     else if (input[p][0].du) {
+      dashIASADecay(p);
       actionStates[characterSelections[p]].APPEAL.init(p,input);
       return true;
     }
