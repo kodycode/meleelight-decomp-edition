@@ -1,5 +1,7 @@
 # MeleeLight Decomp Edition
 
+**Play Here**: https://meleelight-decomp-edition.netlify.app/
+
 **This project was vibe coded with Claude Opus 5.** The whole effort was an
 attempt to replicate *Super Smash Bros. Melee*'s physics engine inside
 [Melee Light](https://github.com/schmooblidon/meleelight) — taking the
