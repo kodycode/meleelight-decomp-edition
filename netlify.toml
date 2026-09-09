@@ -1,0 +1,36 @@
+# Netlify build configuration.
+#
+# dist/js is gitignored (.gitignore:55), so the bundles are NOT in the repo and
+# Netlify has to build them. `animations` must run before `build` -- it emits
+# dist/js/animations.js, which the page loads alongside main.js.
+#
+# The extraction tools in tools/ are not involved: they read a disc image and
+# run offline. Nothing at build time needs game data.
+
+[build]
+  command = "npm run animations && npm run build"
+  publish = "dist"
+
+[build.environment]
+  # package.json requires >=18. Netlify's default is older on some accounts.
+  NODE_VERSION = "18"
+
+# There is no index.html -- the game is meleelight.html -- so serve it at the
+# site root. 200 rather than 301 keeps the URL clean.
+[[redirects]]
+  from = "/"
+  to = "/meleelight.html"
+  status = 200
+
+# The bundles are large and content-changing, so they are named without a
+# hash. Tell browsers to revalidate rather than serve a stale build.
+[[headers]]
+  for = "/js/*"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+# Everything else is static and safe to cache.
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=604800"
