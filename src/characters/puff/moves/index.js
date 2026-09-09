@@ -27,6 +27,7 @@ import FORWARDSMASH from './FORWARDSMASH';
 import FORWARDTILT from './FORWARDTILT';
 import FURAFURA from './FURAFURA';
 import GRAB from './GRAB';
+import CATCHDASH from './CATCHDASH';
 import JAB1 from './JAB1';
 import JAB2 from './JAB2';
 import JUMPAERIAL1 from './JUMPAERIAL1';
@@ -101,6 +102,7 @@ export default {
   FORWARDTILT,
   FURAFURA,
   GRAB,
+  CATCHDASH,
   JAB1,
   JAB2,
   JUMPAERIAL1,

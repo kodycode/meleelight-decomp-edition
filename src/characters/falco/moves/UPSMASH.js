@@ -63,7 +63,9 @@ export default {
     }
   },
   interrupt : function(p,input){
-    if (player[p].timer > 41){
+    // AttackHi4 is 44 frames for Falco and 42 for Fox; this carried Fox's 41 and
+      // ended the move two frames early.
+    if (player[p].timer > 43){
       WAIT.init(p,input);
       return true;
     }

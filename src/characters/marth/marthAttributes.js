@@ -14,52 +14,103 @@ import {  offsets,    charObject,
     setActionSounds,setFrames
 } from "main/characters";
 import {Vec2D} from "../../main/util/Vec2D";
+import {Vec3D} from "../../main/util/Vec3D";
 import {createHitboxObject} from "../../main/util/createHitboxObject";
 import {createHitbox} from "../../main/util/createHitBox";
 /* eslint-disable */
 
  setCharAttributes(CHARIDS.MARTH_ID, {
   dashFrameMin : 15,
-  dashFrameMax : 27,
   dInitV : 1.56,
-  dMaxV : 1.8,
-  dAccA : 0.06,
+  dMaxV : 1.7999999523162842,
+  dAccA : 0.05999999865889549,
   dAccB : 0,
   dTInitV : 1.5,
-  traction : 0.06,
-  maxWalk : 1.6,
+  traction : 0.05999999865889549,
+  maxWalk : 1.600000023841858,
   jumpSquat : 4,
   sHopInitV : 1.5,
-  fHopInitV : 2.4,
-  gravity : 0.085,
-  groundToAir : 0.8,
-  jumpHmaxV : 1.2,
+  fHopInitV : 2.4000000953674316,
+  gravity : 0.08500000089406967,
+  walkAccelMul : 0.15000000596046448,
+  walkAccelBase : 0.0,
+  groundMaxHorizontalV : 3.0,
+  groundToAir : 0.800000011920929,
+  jumpHmaxV : 1.2000000476837158,
   jumpHinitV : 1,
-  airMobA : 0.03,
-  airMobB : 0.02,
-  aerialHmaxV : 0.9,
-  airFriction : 0.005,
-  terminalV : 2.2,
+  airMobA : 0.029999999329447746,
+  airMobB : 0.019999999552965164,
+  aerialHmaxV : 0.8999999761581421,
+  airMaxHorizontalV : 3,
+  airFriction : 0.004999999888241291,
+  terminalV : 2.200000047683716,
   fastFallV : 2.5,
   walkInitV : 0.15,
   walkAcc : 0,
-  walkMaxV : 1.6,
-  djMultiplier : 0.88,
+  walkMaxV : 1.600000023841858,
+  djMultiplier : 0.8799999952316284,
   djMomentum : 1,
   shieldScale : 11.75,
-  modelScale : 1.15,
+  modelScale : 1.149999976158142,
   weight : 87,
   waitAnimSpeed : 1,
   walljump : false,
   hurtboxOffset : [4,18],
-  ledgeSnapBoxOffset : [14,12,22],
+  // Ledge snap box, verbatim from ftData+0x44 (ftData_x44_t, ft/types.h:584).
+  // Melee builds the box in mpColl_80044164 / mpColl_800443C4 (mpcoll.c:1253,
+  // :1326) rather than storing corners, so the raw three values are stored here
+  // and dealWithLedges() reconstructs the box the same way.
+  ledgeSnapX : 12.0,
+  ledgeSnapY : 17.0,
+  ledgeSnapHeight : 11.0,
+  // SUPERSEDED and no longer read. The shield's position now comes from
+  // src/main/shieldData.js, baked from the posed Guard animation. Kept
+  // only because it is a hand-measured value some UI still displays.
   shieldOffset : [5,40],
   charScale : 0.49,
   miniScale : 0.32,
-  runTurnBreakPoint : 18,
+  runTurnBreakPoint : 9,   // extracted: TurnRun subaction sets cmd_vars[1] at frame 9
+  // ftCo_DatAttrs +0x084 standing_turn_frames, read off the disc.
+  //
+  // ftCo_Turn_Enter_Basic (ftCo_Turn.c:64) seeds frames_to_turn with it, and
+  // ftCo_Turn_Anim_Inner (:72) counts it down one per frame and flips
+  // facing_dir on the call that finds it already at zero -- so the turn lands
+  // on frame standing_turn_frames + 1.
+  //
+  // meleelight hardcoded frame 6 for everyone. It is not the same for
+  // everyone: Marth and Falcon are 6, Fox, Falco and Puff are 4, so the
+  // spacies and Puff were turning two frames late.
+  standingTurnFrames : 6,
   airdodgeIntangible : 25,
-  wallJumpVelX : 1.3,
-  wallJumpVelY : 2.4,
+  // Shield Breaker (neutral special), MarsAttributes +0x0C / +0x10.
+  // ftMs_SpecialN_Enter (ftmarsspecialn.c:36) DIVIDES: `gr_vel /= specialn_friction`.
+  // 1.25, so the effect is gr_vel * 0.8 -- which is what meleelight hardcoded,
+  // correctly but without provenance. Kept as the divisor Melee actually uses.
+  specialNFriction : 1.25,                      // ext_attr +0x0C
+  specialNStartFriction : 0.019999999552965164, // ext_attr +0x10
+
+  // Dolphin Slash (up special). Character-specific block at ftData+0x04,
+  // layout from MarsAttributes (src/melee/ft/kinds/ftMars/types.h:46-52).
+  //
+  // The angling of Dolphin Slash is real -- ft_80085154 (ft_084E.c:127) rotates
+  // the animation's own velocity by fp->lstick_angle -- but every number
+  // meleelight used for it was wrong: the stick threshold is 0.5 not 0.7, the
+  // maximum is 20 degrees not 11.25, the ramp runs from the threshold to full
+  // deflection rather than straight off lsX, and the angle LATCHES its largest
+  // magnitude instead of tracking the stick (ftmarsspecialhi.c:94-104).
+  dolphinFacingStickThreshold : 0.25,      // x30
+  dolphinAngleStickThreshold : 0.5,        // x34
+  dolphinMaxAngleDeg : 20.0,               // x38
+  dolphinGroundVelXMul : 0.6665999889373779, // x3C
+  dolphinAirVelMul : 1.100000023841858,    // x40
+  // ftCo_SpecialS.c:45, the side-special entry:
+  //   gr_vel += -(gr_vel * (1 - specials_ground_speed_retention))
+  //             * ft_GetGroundFrictionMultiplier(fp)
+  // which with the usual multiplier of 1 reduces to gr_vel *= retention.
+  // 0.2 on every character here, but it is a per-character field.
+  specialsGroundSpeedRetention : 0.20000000298023224,
+  wallJumpVelX : 1.2999999523162842,
+  wallJumpVelY : 2.4000000953674316,
   shieldBreakVel : 2.5,
   multiJump : false,
   //ecbScale : 1.8,
@@ -70,13 +121,13 @@ import {createHitbox} from "../../main/util/createHitBox";
 
 // start, length
 setIntangibility(CHARIDS.MARTH_ID, {
-  "ESCAPEAIR" : [4,25],
-  "ESCAPEB" : [4,20],
-  "ESCAPEF" : [4,20],
-  "ESCAPEN" : [2,16],
+  "ESCAPEAIR" : [5,26],
+  "ESCAPEB" : [5,20],
+  "ESCAPEF" : [5,16],
+  "ESCAPEN" : [3,17],
   "DOWNSTANDN" : [1,22],
-  "DOWNSTANDB" : [1,19],
-  "DOWNSTANDF" : [6,14],
+  "DOWNSTANDB" : [1,20],
+  "DOWNSTANDF" : [7,14],
   "TECHN" : [1,20],
   "TECHB" : [1,20],
   "TECHF" : [1,20]
@@ -84,9 +135,9 @@ setIntangibility(CHARIDS.MARTH_ID, {
 
 setFrames(CHARIDS.MARTH_ID, {
   "WAIT" : 90,
-  "DASH" : 27,
+  "DASH" : 28,
   "RUN" : 23,
-  "RUNBRAKE" : 25,
+  "RUNBRAKE" : 26,
   "RUNTURN" : 30,
   "WALK" : 21,
   "JUMPF" : 45,
@@ -94,32 +145,32 @@ setFrames(CHARIDS.MARTH_ID, {
   "FALL" : 10,
   "FALLAERIAL" : 10,
   "FALLSPECIAL" : 10,
-  "SQUAT" : 7,
+  "SQUAT" : 8,
   "SQUATWAIT" : 80,
   "SQUATRV" : 8,
   "JUMPAERIALF" : 50,
-  "JUMPAERIALB" : 50,
+  "JUMPAERIALB" : 60,
   "PASS" : 30,
   "GUARDON" : 8,
   "GUARDOFF" : 16,
-  "CLIFFCATCH" : 7,
+  "CLIFFCATCH" : 8,
   "CLIFFWAIT" : 56,
   "DAMAGEFLYN" : 29,
   "DAMAGEFALL" : 30,
-  "DAMAGEN2" : 23,
+  "DAMAGEN2" : 24,
   "LANDINGATTACKAIRF" : 15,
   "LANDINGATTACKAIRB" : 24,
   "LANDINGATTACKAIRU" : 15,
   "LANDINGATTACKAIRD" : 32,
   "LANDINGATTACKAIRN" : 15,
-  "ESCAPEB" : 34,
-  "ESCAPEF" : 34,
-  "ESCAPEN" : 27,
+  "ESCAPEB" : 36,
+  "ESCAPEF" : 36,
+  "ESCAPEN" : 28,
   "DOWNBOUND" : 26,
   "DOWNWAIT" : 60,
   "DOWNSTANDN" : 30,
-  "DOWNSTANDB" : 35,
-  "DOWNSTANDF" : 35,
+  "DOWNSTANDB" : 36,
+  "DOWNSTANDF" : 36,
   "TECHN" : 26,
   "TECHB" : 40,
   "TECHF" : 40,
@@ -129,6 +180,15 @@ setFrames(CHARIDS.MARTH_ID, {
   "FURAFURA" : 100,
   "CAPTUREWAIT" : 60,
   "CATCHWAIT" : 59,
+  "CATCHDASH" : 40,   // ftCo_MS_CatchDash; 30 for the standing Catch
+  // Melee plays the Landing subaction for both, 30 frames on the disc.
+  // Neither had a setFrames entry, so render.js and hurtCapsulesWorld had
+  // nothing to clamp against -- and LANDINGFALLSPECIAL advances its timer
+  // in steps of landingMultiplier (3 for an airdodge), so Math.floor(timer)
+  // reaches 30 either way. Falcon had no hurtbox table for it at all and
+  // fell back to the flat rectangle on every wavedash landing.
+  "LANDING" : 30,
+  "LANDINGFALLSPECIAL" : 30,
   "CAPTURECUT" : 30,
   "CATCHCUT" : 29,
   "CAPTUREDAMAGE" : 20,
@@ -160,7 +220,7 @@ setFrames(CHARIDS.MARTH_ID, {
   "FURASLEEPSTART" : 30,
   "FURASLEEPLOOP" : 80,
   "FURASLEEPEND" : 60,
-  "STOPCEIL" : 9,
+  "STOPCEIL" : 8,
   "TECHU" : 26,
   "REBOUND" : 8
 });
@@ -185,944 +245,340 @@ setActionSounds(CHARIDS.MARTH_ID, {
 
 setOffsets(CHARIDS.MARTH_ID, {
   fair : {
-    id0 : [new Vec2D(9.26,16.34),
-    new Vec2D(11.15,9.93),
-  new Vec2D(9.19,5.23),
-new Vec2D(3.87,2.43)],
-id1 : [new Vec2D(5.46,13.21),
-  new Vec2D(6.26,10.84),
-  new Vec2D(5.82,8.63),
-  new Vec2D(3.93,6.98)],
-id2 : [new Vec2D(0.88,13.20),
-new Vec2D(1.14,12.76),
-new Vec2D(1.20,12.41),
-new Vec2D(1.21,12.14)],
-id3 : [new Vec2D(11.10,21.41),
-new Vec2D(16.53,9.67),
-new Vec2D(13.15,1.64),
-new Vec2D(5.34,-2.18)]
+    id0 : [new Vec3D(9.377983,16.32457,-0.86820126),new Vec3D(11.021669,9.203097,-0.0019515604),new Vec3D(8.1609,4.067817,0.9486289),new Vec3D(3.1536539,2.4740167,3.7966917)],
+id1 : [new Vec3D(5.506916,13.20109,-1.725802),new Vec3D(6.2321663,10.513473,-0.9370039),new Vec3D(5.4635468,8.123732,-0.2014553),new Vec3D(3.7393477,6.9759493,1.1277289)],
+id2 : [new Vec3D(0.89283246,13.198403,0.40722448),new Vec3D(1.1419362,12.75863,0.9028059),new Vec3D(1.2026348,12.407183,1.2080648),new Vec3D(1.202647,12.126711,1.4533533)],
+id3 : [new Vec3D(11.201233,21.389416,-0.58194435),new Vec3D(16.356596,8.651199,0.53915924),new Vec3D(11.360774,-0.20051813,1.723849),new Vec3D(3.7666633,-2.151019,6.4970827)]
   },
 bair : {
-id0 : [new Vec2D(-11.71,6.43),
-new Vec2D(-13.16,13.32),
-new Vec2D(-9.65,17.03),
-new Vec2D(-4.29,17.32),
-new Vec2D(-3.64,17.13)],
-id1 : [new Vec2D(-7.88,9.56),
-new Vec2D(-8.73,11.06),
-new Vec2D(-7.80,12.38),
-new Vec2D(-5.82,12.95),
-new Vec2D(-5.42,12.91)],
-id2 : [new Vec2D(-2.84,13.05),
-new Vec2D(-2.76,13.05),
-new Vec2D(-2.71,13.05),
-new Vec2D(-2.69,13.06),
-new Vec2D(-2.68,13.06)],
-id3 : [new Vec2D(-13.71,1.75),
-new Vec2D(-18.52,13.41),
-new Vec2D(-12.25,21.73),
-new Vec2D(-2.71,22.27),
-new Vec2D(-2.02,22.08)]
+id0 : [new Vec3D(-11.70797,6.4255905,0.795178),new Vec3D(-13.154094,13.324529,-1.3457285),new Vec3D(-8.923374,17.376677,-4.7665954),new Vec3D(-4.210697,17.456673,-5.552098),new Vec3D(-3.4442487,17.379759,-5.678057)],
+id1 : [new Vec3D(-7.8640785,9.560662,0.66651607),new Vec3D(-8.721529,11.065135,-0.8905986),new Vec3D(-7.4769573,12.611862,-3.6295915),new Vec3D(-5.68105,13.063945,-4.491738),new Vec3D(-5.1801877,13.115308,-4.59212)],
+id2 : [new Vec3D(-2.8368163,13.053361,-0.17388096),new Vec3D(-2.762309,13.05499,-0.60841656),new Vec3D(-2.7034688,13.062179,-0.7584253),new Vec3D(-2.6741679,13.074051,-0.772798),new Vec3D(-2.6664736,13.089216,-0.6990808)],
+id3 : [new Vec3D(-13.708773,1.7494712,2.5811062),new Vec3D(-18.514313,13.410873,-0.7805426),new Vec3D(-11.174782,22.23109,-5.4182606),new Vec3D(-2.7630334,22.447126,-4.1173525),new Vec3D(-1.9827384,22.33955,-4.153821)]
 },
 dair : {
-id0 : [new Vec2D(10.13,-0.93),
-  new Vec2D(-1.89,-4.63),
-  new Vec2D(-9.24,0.37),
-  new Vec2D(-12.98,8.16)],
-id1 : [new Vec2D(6.38,0.55),
-new Vec2D(-1.68,-0.60),
-new Vec2D(-6.75,3.33),
-new Vec2D(-9.01,8.90)],
-id2 : [new Vec2D(2.96,4.21),
-new Vec2D(0.04,4.02),
-new Vec2D(-2.94,6.59),
-new Vec2D(-4.13,8.61)],
-id3 : [new Vec2D(2.66,10.54),
-new Vec2D(2.71,10.14),
-new Vec2D(2.46,9.84),
-new Vec2D(1.93,9.66)]
+id0 : [new Vec3D(10.407679,-0.27435255,1.2545453),new Vec3D(-0.6380201,-4.3144064,2.5364685),new Vec3D(-8.130772,-0.7980056,-1.5718412),new Vec3D(-12.980672,8.387724,-1.0455477)],
+id1 : [new Vec3D(6.5949717,0.86098623,0.5335311),new Vec3D(-0.876076,-0.40917325,1.517602),new Vec3D(-6.138465,2.6170177,-0.726895),new Vec3D(-9.003144,9.070316,-0.80275655)],
+id2 : [new Vec3D(3.0504935,4.2103496,-0.60964924),new Vec3D(0.3546384,4.0688133,-0.41350055),new Vec3D(-2.800056,6.339574,-1.0971928),new Vec3D(-4.1047206,8.695314,-1.683548)],
+id3 : [new Vec3D(2.6566458,10.478372,-1.3853488),new Vec3D(2.72456,10.125545,-1.2201662),new Vec3D(2.4951868,9.8185835,-1.3449955),new Vec3D(1.9851378,9.613953,-1.5984439)]
 },
 upair : {
-id0 : [new Vec2D(12.14,14.60),
-new Vec2D(7.42,23.27),
-new Vec2D(-1.33,26.74),
-new Vec2D(-10.99,23.29)],
-id1 : [new Vec2D(7.46,16.76),
-new Vec2D(2.70,20.80),
-new Vec2D(-2.77,21.56),
-new Vec2D(-8.30,18.63)],
-id2 : [new Vec2D(2.63,15.58),
-new Vec2D(-0.33,16.52),
-new Vec2D(-2.60,16.32),
-new Vec2D(-4.92,14.73)],
-id3 : [new Vec2D(0.43,11.46),
-new Vec2D(0.25,12.43),
-new Vec2D(0.07,12.93),
-new Vec2D(-0.42,13.26)]
+id0 : [new Vec3D(12.440633,13.612395,-0.3974384),new Vec3D(7.12551,23.576345,0.27621192),new Vec3D(-0.8899331,26.753088,-0.3339581),new Vec3D(-11.378544,23.005846,-0.036391854)],
+id1 : [new Vec3D(7.7755904,16.145546,-1.3351792),new Vec3D(2.4895322,20.979408,-0.63069296),new Vec3D(-2.456381,21.607578,-0.6928502),new Vec3D(-8.642979,18.371761,-0.35384136)],
+id2 : [new Vec3D(2.8984818,15.340747,-0.8753022),new Vec3D(-0.37071252,16.604973,-0.95272213),new Vec3D(-2.4200292,16.351513,-1.1415397),new Vec3D(-5.1199465,14.564202,-0.875048)],
+id3 : [new Vec3D(0.7182433,11.337877,1.8126068),new Vec3D(0.34633422,12.366116,1.2629586),new Vec3D(0.14970183,12.925301,0.6824641),new Vec3D(-0.4614296,13.264515,0.34021926)]
 },
 nair1 : {
-id0 : [new Vec2D(14.63,8.71),
-new Vec2D(6.37,12.57)],
-id1 : [new Vec2D(8.65,10.24),
-new Vec2D(6.42,11.23)],
-id2 : [new Vec2D(0.07,13.43),
-new Vec2D(0.67,13.40)],
-id3 : [new Vec2D(-0.47,7.74),
-new Vec2D(-0.47,7.74)]
+id0 : [new Vec3D(14.944822,10.286174,0.939738),new Vec3D(8.817161,15.070226,10.661452)],
+id1 : [new Vec3D(8.701586,11.059005,1.106212),new Vec3D(7.4796057,12.85033,4.9655943)],
+id2 : [new Vec3D(0.032338023,13.450651,0.27039027),new Vec3D(0.59630466,13.438713,0.22704104)],
+id3 : [new Vec3D(-0.467749,7.744531,0),new Vec3D(-0.467749,7.744531,0)]
 },
 nair2 : {
-id0 : [new Vec2D(12.35,4.38),
-new Vec2D(0.52,9.91),
-new Vec2D(-12.86,19.45),
-new Vec2D(-7.52,17.11),
-new Vec2D(5.76,10.14),
-new Vec2D(12.26,5.79),
-new Vec2D(11.80,5.33)],
-id1 : [new Vec2D(7.18,7.89),
-new Vec2D(-1.38,11.67),
-new Vec2D(-7.63,16.29),
-new Vec2D(-3.81,14.73),
-new Vec2D(3.67,11.08),
-new Vec2D(6.86,8.92),
-new Vec2D(6.69,8.52)],
-id2 : [new Vec2D(0.70,13.51),
-new Vec2D(0.26,13.43),
-new Vec2D(1.01,12.94),
-new Vec2D(0.80,13.13),
-new Vec2D(-0.01,13.41),
-new Vec2D(-0.68,13.66),
-new Vec2D(-0.46,13.68)],
-id3 : [new Vec2D(-0.47,7.74),
-new Vec2D(-0.47,7.74),
-new Vec2D(-0.47,7.74),
-new Vec2D(-0.47,7.74),
-new Vec2D(-0.48,7.74),
-new Vec2D(-0.48,7.74),
-new Vec2D(-0.48,7.74)]
+id0 : [new Vec3D(12.988443,4.543367,-1.0408895),new Vec3D(0.39347708,12.439482,-14.279942),new Vec3D(-11.52667,20.961388,-1.9864179),new Vec3D(-7.173567,16.648373,12.042881),new Vec3D(7.2013974,9.911234,12.474334),new Vec3D(12.158569,5.4907036,2.0497217),new Vec3D(11.738926,5.20117,-3.4182963)],
+id1 : [new Vec3D(7.7274246,8.003261,-1.3005962),new Vec3D(-1.5747013,13.097492,-8.354935),new Vec3D(-7.0186553,17.048786,0.014879346),new Vec3D(-3.6040542,14.425021,7.355296),new Vec3D(4.3651195,11.045489,6.9687986),new Vec3D(6.825941,8.736496,1.233522),new Vec3D(6.6646028,8.442262,-1.5678275)],
+id2 : [new Vec3D(0.683812,13.513038,0.11983448),new Vec3D(0.2556907,13.310461,0.673787),new Vec3D(1.061059,12.919142,0.3771217),new Vec3D(0.7736394,13.166986,-0.5952676),new Vec3D(-0.20776308,13.521043,-0.611875),new Vec3D(-0.60427225,13.646643,-0.13184077),new Vec3D(-0.40946347,13.677572,0.18453574)],
+id3 : [new Vec3D(-0.46802,7.744531,0.0021899308),new Vec3D(-0.467749,7.744531,0),new Vec3D(-0.4690359,7.744531,-0.0046333172),new Vec3D(-0.47233552,7.744531,-0.007834393),new Vec3D(-0.47656712,7.744531,-0.008982836),new Vec3D(-0.4806415,7.744531,-0.0080898395),new Vec3D(-0.48373774,7.744531,-0.0056265374)]
 },
 upb1 : {
-id0 : [new Vec2D(9.74,4.31)],
-id1 : [new Vec2D(6.39,6.58)],
-id2 : [new Vec2D(-0.53,5.88)]
+id0 : [new Vec3D(9.69663,4.657036,2.1616426)],
+id1 : [new Vec3D(6.3237753,6.824687,1.6413184)],
+id2 : [new Vec3D(-0.5289855,5.8825192,0.36802024)]
 },
 upb2 : {
-id0 : [new Vec2D(13.85,13.53),
-new Vec2D(10.60,24.21),
-new Vec2D(8.68,26.72),
-new Vec2D(6.97,27.35),
-new Vec2D(4.78,27.94)],
-id1 : [new Vec2D(9.83,13.99),
-new Vec2D(7.55,21.56),
-new Vec2D(5.85,23.84),
-new Vec2D(4.32,24.33),
-new Vec2D(2.61,24.55)],
-id2 : [new Vec2D(0.01,8.80),
-new Vec2D(0.07,10.68),
-new Vec2D(0.07,11.68),
-new Vec2D(0.07,11.68),
-new Vec2D(0.09,11.67)]
+id0 : [new Vec3D(13.851143,13.538577,0.86313516),new Vec3D(10.763144,24.073986,0.40188017),new Vec3D(9.013697,26.48571,0.38138378),new Vec3D(6.966041,27.351048,0.42087626),new Vec3D(4.6120267,28.000107,0.1713865)],
+id1 : [new Vec3D(9.833489,13.981898,0.7764108),new Vec3D(7.661626,21.481277,0.33834454),new Vec3D(6.1000733,23.69152,0.16024837),new Vec3D(4.318436,24.328297,-0.02495575),new Vec3D(2.484383,24.580467,-0.18183567)],
+id2 : [new Vec3D(0.017628908,8.799911,0.24640219),new Vec3D(0.069340706,10.683918,-0.18464568),new Vec3D(0.063644886,11.675552,-0.4369757),new Vec3D(0.07466841,11.672173,-0.45074695),new Vec3D(0.08767986,11.668098,-0.47020835)]
 },
 dtilt : {
-id0 : [new Vec2D(18.90,2.38),
-new Vec2D(18.96,2.87),
-new Vec2D(18.81,2.94)],
-id1 : [new Vec2D(13.12,4.02),
-new Vec2D(13.17,4.45),
-new Vec2D(13.07,4.69)],
-id2 : [new Vec2D(8.81,7.67),
-new Vec2D(8.72,7.77),
-new Vec2D(8.64,7.85)],
-id3 : [new Vec2D(23.60,0.88),
-new Vec2D(23.72,1.55),
-new Vec2D(23.57,1.62)]
+id0 : [new Vec3D(18.845226,2.233223,0.057702877),new Vec3D(19.100313,3.4770324,1.6055313),new Vec3D(18.819344,3.0859008,0.18598492)],
+id1 : [new Vec3D(13.087364,3.9434943,0.24942297),new Vec3D(13.253757,4.720516,1.0081273),new Vec3D(13.0598545,4.773184,0.5416141)],
+id2 : [new Vec3D(8.736528,7.837564,0.57370985),new Vec3D(8.613855,7.9753895,0.3306822),new Vec3D(8.4838,8.061061,0.41592586)],
+id3 : [new Vec3D(23.535694,0.67920256,0.10268256),new Vec3D(23.839611,2.3948965,2.4918315),new Vec3D(23.593952,1.8144791,0.24997981)]
 },
 uptilt1 : {
-id0 : [new Vec2D(14.64,13.62),
-new Vec2D(12.78,21.24),
-new Vec2D(7.78,23.94)],
-id1 : [new Vec2D(9.86,15.22),
-new Vec2D(8.52,17.26),
-new Vec2D(6.52,18.25)],
-id2 : [new Vec2D(3.56,13.40),
-new Vec2D(4.28,13.19),
-new Vec2D(5.37,12.98)],
-id3 : [new Vec2D(16.87,10.48),
-new Vec2D(16.18,23.26),
-new Vec2D(9.25,27.69)]
+id0 : [new Vec3D(14.521622,13.896455,2.9277058),new Vec3D(12.00462,21.685616,2.0257566),new Vec3D(7.50164,24.013815,-0.6891353)],
+id1 : [new Vec3D(9.664932,15.423689,1.0135561),new Vec3D(8.091676,17.42661,1.1018559),new Vec3D(6.4077253,18.272074,-0.45288455)],
+id2 : [new Vec3D(3.4424372,13.208686,1.5936106),new Vec3D(4.101376,12.702608,2.294241),new Vec3D(5.536938,12.960221,2.3494346)],
+id3 : [new Vec3D(16.970175,10.824717,3.8840604),new Vec3D(15.160354,23.873945,3.289936),new Vec3D(8.800652,27.831963,-0.40641686)]
 },
 uptilt2 : {
-id0 : [new Vec2D(3.50,23.34),
-new Vec2D(0.18,20.96),
-new Vec2D(-2.00,16.58),
-new Vec2D(-2.09,12.08)],
-id1 : [new Vec2D(4.81,17.71),
-new Vec2D(3.27,16.16),
-new Vec2D(2.75,13.91),
-new Vec2D(2.98,11.92)],
-id2 : [new Vec2D(7.18,13.37),
-new Vec2D(8.38,12.76),
-new Vec2D(8.69,12.45),
-new Vec2D(8.67,12.40)],
-id3 : [new Vec2D(3.11,27.30),
-new Vec2D(-0.87,24.71),
-new Vec2D(-4.29,19.86),
-new Vec2D(-5.30,14.32)]
+id0 : [new Vec3D(3.8109453,23.380796,-1.0533444),new Vec3D(0.07333959,20.8637,-0.94242716),new Vec3D(-2.341707,15.991837,0.12963538),new Vec3D(-2.0926447,12.082138,-0.12584828)],
+id1 : [new Vec3D(4.900831,17.708307,-1.421555),new Vec3D(3.2263052,16.121658,-1.4683565),new Vec3D(2.6369722,13.668196,-0.23642308),new Vec3D(2.9832106,11.919154,0.36403355)],
+id2 : [new Vec3D(7.386356,13.350162,1.0562576),new Vec3D(8.377061,12.757983,-0.34152162),new Vec3D(8.652197,12.499814,0.5506485),new Vec3D(8.673138,12.403114,1.2970109)],
+id3 : [new Vec3D(3.6114225,27.374487,-0.4564891),new Vec3D(-1.0192388,24.558472,0.28253686),new Vec3D(-4.9004827,19.096706,0.5271868),new Vec3D(-5.3024893,14.320428,-1.1419926)]
 },
 ftilt : {
-id0 : [new Vec2D(8.54,4.11),
-new Vec2D(16.17,9.33),
-new Vec2D(18.10,13.45),
-new Vec2D(14.84,18.26)],
-id1 : [new Vec2D(9.39,8.39),
-new Vec2D(11.99,12.21),
-new Vec2D(13.09,11.90),
-new Vec2D(12.10,13.63)],
-id2 : [new Vec2D(4.58,12.75),
-new Vec2D(5.70,11.87),
-new Vec2D(7.10,10.66),
-new Vec2D(8.58,9.60)],
-id3 : [new Vec2D(4.12,1.46),
-new Vec2D(18.41,4.48),
-new Vec2D(23.49,13.65),
-new Vec2D(18.61,22.11)]
+id0 : [new Vec3D(8.534274,4.0990996,4.8821216),new Vec3D(16.265057,9.5443,1.0555103),new Vec3D(18.20682,12.96394,-1.2644649),new Vec3D(14.660122,18.395655,-1.5904527)],
+id1 : [new Vec3D(9.383854,8.383013,2.8652842),new Vec3D(11.977288,12.288447,1.2550082),new Vec3D(13.1737585,11.639188,-0.2286087),new Vec3D(12.027858,13.701718,-1.0706327)],
+id2 : [new Vec3D(4.5783625,12.747743,1.1562781),new Vec3D(5.6975646,11.850936,1.7609673),new Vec3D(7.2593455,10.670524,2.315372),new Vec3D(8.698629,9.547318,1.8632774)],
+id3 : [new Vec3D(4.109794,1.4432111,6.4406714),new Vec3D(18.574356,4.723211,1.7505502),new Vec3D(23.58663,12.923722,-1.6033714),new Vec3D(18.34532,22.3203,-1.8648884)]
 },
 dashattack : {
-id0 : [new Vec2D(11.03,3.26),
-new Vec2D(15.21,6.22),
-new Vec2D(15.05,7.87),
-new Vec2D(13.97,12.26)],
-id1 : [new Vec2D(9.54,5.43),
-new Vec2D(10.63,7.23),
-new Vec2D(10.13,8.36),
-new Vec2D(9.47,10.73)],
-id2 : [new Vec2D(5.49,9.14),
-new Vec2D(6.38,7.95),
-new Vec2D(7.27,7.04),
-new Vec2D(7.26,6.89)],
-id3 : [new Vec2D(6.48,1.06),
-new Vec2D(19.59,2.77),
-new Vec2D(21.26,6.96),
-new Vec2D(20.08,13.48)]
+id0 : [new Vec3D(10.874907,3.2246,6.561089),new Vec3D(15.327076,6.449546,1.4080435),new Vec3D(15.041319,7.8700185,-2.7781696),new Vec3D(13.94935,12.304487,-4.922581)],
+id1 : [new Vec3D(9.4547615,5.4044466,4.0163736),new Vec3D(10.64193,7.3777447,0.68458503),new Vec3D(10.132414,8.384964,-2.0319006),new Vec3D(9.4527855,10.743961,-3.2938695)],
+id2 : [new Vec3D(5.411764,9.129557,3.8857832),new Vec3D(6.3097076,7.7819886,3.363071),new Vec3D(7.2546024,6.9831753,1.0588317),new Vec3D(7.2500057,6.8764277,-0.40636295)],
+id3 : [new Vec3D(6.223707,1.0178778,10.173434),new Vec3D(20.112232,3.1278358,3.7788699),new Vec3D(21.245272,6.9082837,-3.1500816),new Vec3D(20.059,13.548943,-5.7446837)]
 },
 jab1 : {
-id0 : [new Vec2D(13.68,7.34),
-new Vec2D(16.64,10.96),
-new Vec2D(15.79,15.10),
-new Vec2D(12.70,18.69)],
-id1 : [new Vec2D(10.22,9.87),
-new Vec2D(12.21,11.53),
-new Vec2D(11.63,13.74),
-new Vec2D(10.03,15.89)],
-id2 : [new Vec2D(5.18,12.23),
-new Vec2D(5.58,12.10),
-new Vec2D(5.96,12.11),
-new Vec2D(6.75,12.65)],
-id3 : [new Vec2D(16.45,1.88),
-new Vec2D(22.52,8.98),
-new Vec2D(21.85,16.40),
-new Vec2D(18.57,20.40)]
+id0 : [new Vec3D(12.69981,6.834947,3.5675583),new Vec3D(16.20785,9.470389,2.493561),new Vec3D(15.838491,14.9921255,-1.9814376),new Vec3D(12.305504,19.127155,-4.9035864)],
+id1 : [new Vec3D(9.444508,9.613388,2.750053),new Vec3D(12.018134,10.8486395,1.844696),new Vec3D(11.673613,13.689229,-0.9559399),new Vec3D(9.876073,16.06874,-2.5408266)],
+id2 : [new Vec3D(4.5290027,12.226525,-0.1257574),new Vec3D(5.6206274,12.0196,1.0394386),new Vec3D(5.994213,12.137611,1.9208728),new Vec3D(6.70193,12.652677,2.0948572)],
+id3 : [new Vec3D(15.012769,1.0194435,4.185981),new Vec3D(21.378677,6.302518,4.160726),new Vec3D(21.908306,16.226164,-3.0708425),new Vec3D(18.018343,21.295366,-6.3917613)]
 },
 jab2 : {
-id0 : [new Vec2D(16.61,8.05),
-new Vec2D(16.65,13.43),
-new Vec2D(13.12,17.59),
-new Vec2D(7.91,18.53),
-new Vec2D(3.47,16.83)],
-id1 : [new Vec2D(12.87,10.31),
-new Vec2D(12.38,13.23),
-new Vec2D(10.27,15.37),
-new Vec2D(7.70,15.82),
-new Vec2D(5.58,15.06)],
-id2 : [new Vec2D(7.04,13.09),
-new Vec2D(6.30,13.75),
-new Vec2D(5.20,13.28),
-new Vec2D(5.26,12.96),
-new Vec2D(5.59,13.11)],
-id3 : [new Vec2D(19.38,3.39),
-new Vec2D(22.57,12.52),
-new Vec2D(17.07,19.43),
-new Vec2D(9.85,21.01),
-new Vec2D(4.67,18.33)]
+id0 : [new Vec3D(16.629417,8.043336,-1.5795445),new Vec3D(16.640738,13.417661,2.2140644),new Vec3D(13.119881,17.588182,3.9934402),new Vec3D(7.5084953,18.565437,6.14462),new Vec3D(3.472116,16.830803,6.346494)],
+id1 : [new Vec3D(12.869593,10.308179,-0.87793475),new Vec3D(12.377077,13.229267,0.7376299),new Vec3D(10.271735,15.37119,1.3305176),new Vec3D(7.5158095,15.83744,2.536833),new Vec3D(5.577158,15.055705,2.8937535)],
+id2 : [new Vec3D(7.0434847,13.088795,-0.89469635),new Vec3D(6.2950087,13.745877,-1.5071266),new Vec3D(5.2026367,13.282162,-2.1395514),new Vec3D(5.2574964,12.955308,-2.3607707),new Vec3D(5.586364,13.113766,-2.1056325)],
+id3 : [new Vec3D(19.474741,3.3275585,-4.6156425),new Vec3D(22.532677,12.451024,4.18966),new Vec3D(17.07037,19.431253,8.526545),new Vec3D(9.226696,20.959095,11.700743),new Vec3D(4.6666393,18.328323,12.336724)]
 },
 dbground : {
-id0 : [new Vec2D(11.97,19.81),
-new Vec2D(18.79,12.44),
-new Vec2D(16.47,5.00)],
-id1 : [new Vec2D(9.62,25.13),
-new Vec2D(23.82,15.40),
-new Vec2D(21.42,1.90)],
-id2 : [new Vec2D(11.60,14.07),
-new Vec2D(13.01,11.51),
-new Vec2D(12.41,9.36)],
-id3 : [new Vec2D(5.43,14.48),
-new Vec2D(7.02,14.17),
-new Vec2D(9.50,11.87)]
+id0 : [new Vec3D(12.7103815,18.956865,1.8063151),new Vec3D(18.761105,12.076396,0.18962333),new Vec3D(16.471943,4.490586,-1.0369781)],
+id1 : [new Vec3D(10.910237,24.501183,2.158194),new Vec3D(23.72302,15.145699,0.43975794),new Vec3D(21.417679,1.3996308,-0.73783284)],
+id2 : [new Vec3D(11.755126,13.278545,0.63986605),new Vec3D(13.006606,11.069148,-0.9926208),new Vec3D(12.411213,8.856912,-1.6458181)],
+id3 : [new Vec3D(5.7205143,14.333732,-1.7859265),new Vec3D(7.015876,13.718439,-1.0401446),new Vec3D(9.500607,11.368057,1.1903884)]
 },
 fsmash : {
-id0 : [new Vec2D(14.73,20.43),
-new Vec2D(23.35,12.45),
-new Vec2D(18.63,0.49),
-new Vec2D(18.83,0.19)],
-id1 : [new Vec2D(14.85,15.44),
-new Vec2D(18.30,10.69),
-new Vec2D(15.87,4.03),
-new Vec2D(15.37,3.52)],
-id2 : [new Vec2D(9.32,8.08),
-new Vec2D(10.74,6.82),
-new Vec2D(12.01,5.69),
-new Vec2D(12.01,5.08)],
-id3 : [new Vec2D(10.98,24.89),
-new Vec2D(28.11,15.83),
-new Vec2D(24.45,0.79),
-new Vec2D(24.65,0.33)]
+id0 : [new Vec3D(11.4734955,20.45359,0.31652337),new Vec3D(19.986399,12.214288,3.0146053),new Vec3D(14.835105,0.51497495,3.2404828),new Vec3D(15.038846,0.23129675,2.7699053)],
+id1 : [new Vec3D(11.847935,15.470632,0.51925224),new Vec3D(14.92801,10.368125,2.8115368),new Vec3D(12.075245,4.027239,3.7551234),new Vec3D(11.572859,3.5151284,2.9770353)],
+id2 : [new Vec3D(6.6439815,7.7342052,0.17063804),new Vec3D(7.6960077,6.3423533,0.7478869),new Vec3D(8.212928,5.685705,1.0676517),new Vec3D(8.21377,5.0765934,1.0131838)],
+id3 : [new Vec3D(7.4732203,24.658524,-0.33163613),new Vec3D(24.613714,15.690503,3.794126),new Vec3D(20.655796,0.8763335,2.9358997),new Vec3D(20.85965,0.5047264,2.3861463)]
 },
 upsmash : {
-id0 : [new Vec2D(6.29,7.64),
-new Vec2D(6.29,7.64),
-new Vec2D(6.29,7.64),
-new Vec2D(6.29,7.64)],
-id1 : [new Vec2D(-6.29,7.64),
-new Vec2D(-6.29,7.64),
-new Vec2D(-6.29,7.64),
-new Vec2D(-6.29,7.64)],
-id2 : [new Vec2D(0.91,21.71),
-new Vec2D(0.82,21.13),
-new Vec2D(0.78,20.56),
-new Vec2D(0.78,20.87)],
-id3 : [new Vec2D(0.19,26.06),
-new Vec2D(0.03,25.46),
-new Vec2D(-0.04,24.89),
-new Vec2D(-0.03,25.20)]
+id0 : [new Vec3D(2.17843,7.6367188,-0.2603363),new Vec3D(2.17843,7.6367188,-0.2603363),new Vec3D(2.17843,7.6367188,-0.2603363),new Vec3D(2.17843,7.6367188,-0.2603363)],
+id1 : [new Vec3D(-10.399694,7.6367188,-0.2603363),new Vec3D(-10.399694,7.6367188,-0.2603363),new Vec3D(-10.399694,7.6367188,-0.2603363),new Vec3D(-10.399694,7.6367188,-0.2603363)],
+id2 : [new Vec3D(-3.0859623,21.386627,0.5863085),new Vec3D(-3.162953,21.356874,0.4560689),new Vec3D(-2.6914625,21.198824,-0.33296075),new Vec3D(-1.4230211,20.220373,-2.0942054)],
+id3 : [new Vec3D(-3.5232067,25.491512,-0.9572096),new Vec3D(-3.4451303,25.41458,-1.2407277),new Vec3D(-2.4699264,25.03643,-2.4887497),new Vec3D(-0.26028967,23.07075,-5.2481112)]
 },
 dsmash1 : {
-id0 : [new Vec2D(13.69,4.12),
-new Vec2D(19.33,5.53),
-new Vec2D(15.33,6.20)],
-id1 : [new Vec2D(12.67,7.34),
-new Vec2D(14.83,8.08),
-new Vec2D(12.92,8.48)],
-id2 : [new Vec2D(6.48,6.94),
-new Vec2D(7.05,6.49),
-new Vec2D(6.79,6.43)],
-id3 : [new Vec2D(11.96,2.87),
-new Vec2D(24.08,3.30),
-new Vec2D(19.09,3.90)]
+id0 : [new Vec3D(12.925229,4.703694,6.892117),new Vec3D(17.811203,5.7547894,-1.5386665),new Vec3D(13.942164,6.337044,-8.061283)],
+id1 : [new Vec3D(11.499261,7.6801443,3.2395396),new Vec3D(13.310801,8.20626,-0.50869656),new Vec3D(11.574861,8.551846,-3.953367)],
+id2 : [new Vec3D(4.996867,6.9374766,0.14982802),new Vec3D(5.5689087,6.490369,0.14571536),new Vec3D(5.5151434,6.429057,0.031971775)],
+id3 : [new Vec3D(11.524302,3.5375504,11.965219),new Vec3D(22.637674,3.5539026,-0.57943815),new Vec3D(17.663836,4.0953503,-11.2523365)]
 },
 dsmash2 : {
-id0 : [new Vec2D(-9.69,3.24),
-new Vec2D(-12.61,2.91),
-new Vec2D(-10.56,3.43)],
-id1 : [new Vec2D(-6.68,4.54),
-new Vec2D(-8.18,4.30),
-new Vec2D(-7.89,4.30)],
-id2 : [new Vec2D(-0.35,5.31),
-new Vec2D(-0.65,5.17),
-new Vec2D(-0.63,5.09)],
-id3 : [new Vec2D(-10.28,2.16),
-new Vec2D(-17.91,2.01),
-new Vec2D(-14.94,2.54)]
+id0 : [new Vec3D(-9.931332,2.8697262,8.350224),new Vec3D(-12.610483,2.9184313,-2.1680708),new Vec3D(-10.949007,3.720419,-5.479164)],
+id1 : [new Vec3D(-6.7829075,4.3464913,4.583852),new Vec3D(-8.177609,4.3031363,0.0757457),new Vec3D(-8.119609,4.4092307,-1.1422935)],
+id2 : [new Vec3D(-0.39752126,5.3137994,0.3193267),new Vec3D(-0.6496826,5.1716304,0.3373352),new Vec3D(-0.6253353,5.0882177,0.32708082)],
+id3 : [new Vec3D(-10.732005,1.6448778,13.538431),new Vec3D(-17.913143,2.0160549,-1.8126092),new Vec3D(-15.464454,3.2279499,-8.382103)]
 },
 grab : {
-id0 : [new Vec2D(14.82,9.43),
-new Vec2D(14.82,9.43)],
-id1 : [new Vec2D(11.23,8.98),
-new Vec2D(11.23,8.98)],
-id2 : [new Vec2D(8.09,8.53),
-new Vec2D(8.09,8.53)]
+id0 : [new Vec3D(14.824219,9.433594,0),new Vec3D(14.824219,9.433594,0)],
+id1 : [new Vec3D(11.230469,8.984375,0),new Vec3D(11.230469,8.984375,0)],
+id2 : [new Vec3D(8.0859375,8.535156,0),new Vec3D(8.0859375,8.535156,0)]
+},
+grabDash : {
+  id0 : [new Vec3D(15.088556,8.535156,0),new Vec3D(15.088556,8.535156,0)],
+  id1 : [new Vec3D(10.14715,8.0859375,0),new Vec3D(10.14715,8.0859375,0)],
+  id2 : [new Vec3D(0.71355593,7.6367188,0),new Vec3D(0.71355593,7.6367188,0)]
 },
 downattack1 : {
-id0 : [new Vec2D(-11.59,7.12),
-new Vec2D(-11.57,7.18),
-new Vec2D(-11.59,7.20),
-new Vec2D(-11.61,7.26)],
-id1 : [new Vec2D(-7.46,8.54),
-new Vec2D(-7.43,8.59),
-new Vec2D(-7.43,8.56),
-new Vec2D(-7.43,8.57)],
-id2 : [new Vec2D(-3.85,11.23),
-new Vec2D(-3.84,11.27),
-new Vec2D(-3.84,11.21),
-new Vec2D(-3.83,11.17)],
-id3 : [new Vec2D(-17.85,7.02),
-new Vec2D(-17.84,7.07),
-new Vec2D(-17.86,7.15),
-new Vec2D(-17.89,7.30)]
+id0 : [new Vec3D(-11.58036,7.1080837,1.9788872),new Vec3D(-11.8989105,7.4150767,2.1523101),new Vec3D(-12.4684925,7.849612,2.2447307),new Vec3D(-12.570635,7.9228554,2.3503506)],
+id1 : [new Vec3D(-7.453257,8.532597,2.938908),new Vec3D(-7.723884,8.677619,3.0835264),new Vec3D(-8.22554,8.8190155,3.1628513),new Vec3D(-8.308081,8.818505,3.2198253)],
+id2 : [new Vec3D(-3.8509269,11.233037,0.6840916),new Vec3D(-4.1414866,11.269523,0.8465929),new Vec3D(-4.6559887,11.208561,0.94591737),new Vec3D(-4.745015,11.156621,0.9701704)],
+id3 : [new Vec3D(-17.846218,7.018428,1.4466212),new Vec3D(-18.170094,7.4969254,1.6855588),new Vec3D(-18.73718,8.239333,1.9222395),new Vec3D(-18.839804,8.376087,2.1396093)]
 },
 downattack2 : {
-id0 : [new Vec2D(17.65,9.84),
-new Vec2D(18.77,10.73)],
-id1 : [new Vec2D(13.16,10.31),
-new Vec2D(14.52,10.42)],
-id2 : [new Vec2D(6.59,11.20),
-new Vec2D(8.36,10.74)],
-id3 : [new Vec2D(23.38,8.95),
-new Vec2D(25.05,10.63)]
+id0 : [new Vec3D(17.304165,9.803529,4.2454805),new Vec3D(18.85858,10.873214,-0.9176505)],
+id1 : [new Vec3D(12.933962,10.290689,3.1336083),new Vec3D(14.546775,10.503739,0.5220364)],
+id2 : [new Vec3D(6.365323,11.328361,2.6754956),new Vec3D(8.295756,10.7523365,2.9302578)],
+id3 : [new Vec3D(22.564116,9.065233,7.6129947),new Vec3D(25.144789,10.854351,-1.1061115)]
 },
 pummel : {
-id0 : [new Vec2D(8.87,10.75)]
+id0 : [new Vec3D(8.869359,10.747374,0.7725009)]
 },
 thrown : {
-id0 : [new Vec2D(0,12)]
+id0 : [new Vec3D(-1.486815,11.076998,0.05927724)]
 },
 dbground2up : {
-  id0 : [new Vec2D(13.93,9.48),
-  new Vec2D(18.57,15.55),
-new Vec2D(17.22,20.42),
-new Vec2D(12.86,23.98)],
-  id1 : [new Vec2D(19.32,8.20),
-  new Vec2D(24.08,17.50),
-new Vec2D(20.91,24.94),
-new Vec2D(12.96,29.82)],
-  id2 : [new Vec2D(9.24,12.30),
-  new Vec2D(12.61,15.16),
-new Vec2D(12.23,17.11),
-new Vec2D(10.91,18.34)],
-  id3 : [new Vec2D(6.41,13.82),
-  new Vec2D(6.20,14.16),
-new Vec2D(6.17,14.29),
-new Vec2D(6.25,14.38)]
+  id0 : [new Vec3D(14.000539,9.624981,-7.3382335),new Vec3D(18.530931,15.643968,-2.0892572),new Vec3D(17.19057,20.453781,-1.443118),new Vec3D(12.794732,24.011993,-0.33924547)],
+  id1 : [new Vec3D(19.424688,8.416927,-9.133499),new Vec3D(24.017418,17.642067,-1.9900458),new Vec3D(20.861265,24.992474,-1.2697643),new Vec3D(12.914618,29.847818,-0.51962864)],
+  id2 : [new Vec3D(9.26307,12.360095,-4.9031906),new Vec3D(12.566964,15.206289,-1.9739323),new Vec3D(12.210882,17.122074,-1.5299423),new Vec3D(10.866575,18.363644,-0.7997416)],
+  id3 : [new Vec3D(6.3732862,13.794668,-0.43048966),new Vec3D(6.1724815,14.1354885,-0.927799),new Vec3D(6.160308,14.283893,-1.0303628),new Vec3D(6.241436,14.361099,-1.152961)]
 },
 dbground2forward : {
-  id0 : [new Vec2D(20.48,7.48),
-  new Vec2D(22.65,6.76),
-new Vec2D(22.41,6.82)],
-  id1 : [new Vec2D(26.00,6.04),
-    new Vec2D(28.33,5.44),
-    new Vec2D(28.10,5.49)],
-  id2 : [new Vec2D(14.63,9.09),
-  new Vec2D(16.95,8.56),
-new Vec2D(16.71,8.60)],
-  id3 : [new Vec2D(11.13,11.01),
-  new Vec2D(11.36,11.47),
-new Vec2D(11.12,11.51)]
+  id0 : [new Vec3D(20.484728,7.483177,-3.6795127),new Vec3D(22.626892,6.7038503,-0.41902748),new Vec3D(22.254658,6.5219154,0.19643277)],
+  id1 : [new Vec3D(26.003946,6.0430765,-2.4272723),new Vec3D(28.304193,5.3402348,-0.53112656),new Vec3D(27.754301,4.562988,0.33889925)],
+  id2 : [new Vec3D(14.625904,9.089918,-4.1664233),new Vec3D(16.941013,8.539816,-0.5923859),new Vec3D(16.696692,8.598319,-0.50969887)],
+  id3 : [new Vec3D(11.129227,11.010143,0.8250342),new Vec3D(11.358437,11.47012,-0.24761164),new Vec3D(11.119772,11.50705,-0.4385463)]
 },
 dbground3down : {
-  id0 : [new Vec2D(6.45,11.60),
-  new Vec2D(9.05,7.71),
-new Vec2D(10.29,7.69),
-new Vec2D(9.56,7.64)],
-  id1 : [new Vec2D(4.21,13.62),
-  new Vec2D(13.25,3.86),
-new Vec2D(14.43,3.80),
-new Vec2D(13.66,3.73)],
-  id2 : [new Vec2D(4.79,12.73),
-  new Vec2D(5.08,12.33),
-new Vec2D(6.37,12.35),
-new Vec2D(5.68,12.32)],
-  id3 : [new Vec2D(-0.12,15.10),
-  new Vec2D(0.67,15.04),
-new Vec2D(2.06,15.02),
-new Vec2D(1.38,15.03)]
+  id0 : [new Vec3D(6.450181,11.595148,3.6473935),new Vec3D(9.045634,7.707169,-0.11217369),new Vec3D(10.286992,7.6861916,-0.0071534514),new Vec3D(9.399438,7.6933274,0.872739)],
+  id1 : [new Vec3D(4.213111,13.624107,8.645657),new Vec3D(13.252315,3.861874,1.1611407),new Vec3D(14.421367,3.8028765,1.382308),new Vec3D(13.369008,3.8110619,2.6822464)],
+  id2 : [new Vec3D(4.786891,12.730354,0.011824548),new Vec3D(5.0824213,12.333715,-0.48783764),new Vec3D(6.373788,12.345392,-0.488598),new Vec3D(5.5592413,12.353909,-0.013245016)],
+  id3 : [new Vec3D(-0.11849117,15.094973,-3.2157118),new Vec3D(0.66825867,15.039557,-3.3148346),new Vec3D(2.0640965,15.017953,-3.4459815),new Vec3D(1.547082,15.012714,-3.3822236)]
 },
 dbground3forward : {
-  id0 : [new Vec2D(17.73,5.45),
-  new Vec2D(20.78,7.78),
-new Vec2D(21.21,11.12),
-new Vec2D(15.61,14.32)],
-  id1 : [new Vec2D(20.65,4.16),
-  new Vec2D(26.30,7.46),
-new Vec2D(26.86,12.57),
-new Vec2D(18.57,17.31)],
-  id2 : [new Vec2D(13.30,7.27),
-  new Vec2D(14.85,8.36),
-new Vec2D(15.33,9.71),
-new Vec2D(13.16,11.30)],
-  id3 : [new Vec2D(7.89,10.10),
-  new Vec2D(9.16,10.31),
-new Vec2D(10.14,10.25),
-new Vec2D(10.22,9.96)]
+  id0 : [new Vec3D(17.841238,5.544807,4.6256204),new Vec3D(20.820688,8.091551,0.13480657),new Vec3D(21.220747,11.4725485,-2.784378),new Vec3D(16.03699,15.280756,-8.90147)],
+  id1 : [new Vec3D(20.82249,4.246098,9.476316),new Vec3D(26.361572,7.870843,1.9661114),new Vec3D(26.814188,12.986632,-2.0599904),new Vec3D(19.218252,18.74746,-12.3605585)],
+  id2 : [new Vec3D(13.347332,7.3195133,0.93759716),new Vec3D(14.868018,8.513043,-1.0021069),new Vec3D(15.3498335,9.897914,-2.5879045),new Vec3D(13.346268,11.683352,-4.804542)],
+  id3 : [new Vec3D(7.881068,10.073654,-0.18740773),new Vec3D(9.115978,10.203803,-0.11766529),new Vec3D(10.025814,10.066132,-0.01891613),new Vec3D(10.145628,9.657938,0.29033625)]
 },
 dbground3up : {
-  id0 : [new Vec2D(8.37-1.35,19.27),
-  new Vec2D(13.18-1.11,17.75),
-new Vec2D(14.46-0.88,13.50),
-new Vec2D(9.87-0.76,6.11),
-new Vec2D(1.39-0.54,6.55)],
-  id1 : [new Vec2D(4.28-1.35,23.32),
-  new Vec2D(14.74-1.11,23.36),
-new Vec2D(19.02-0.88,17.14),
-new Vec2D(15.08-0.76,5.41),
-new Vec2D(2.70-0.54,4.51)],
-  id2 : [new Vec2D(10.07-1.35,14.81),
-  new Vec2D(10.13-1.11,13.05),
-new Vec2D(8.88-0.88,11.79),
-new Vec2D(5.65-0.76,9.28),
-new Vec2D(2.50-0.54,9.95)],
-  id3 : [new Vec2D(5.17-1.35,13.40),
-  new Vec2D(6.35-1.11,12.52),
-new Vec2D(5.87-0.88,12.28),
-new Vec2D(6.66-0.76,11.39),
-new Vec2D(7.12-0.54,10.53)]
+  id0 : [new Vec3D(6.8809175,19.313442,1.498537),new Vec3D(12.114833,17.738163,0.9722369),new Vec3D(13.458198,13.285846,-1.3104233),new Vec3D(8.999826,6.102466,-7.368777),new Vec3D(0.31854248,7.299413,-8.646528)],
+  id1 : [new Vec3D(2.7289257,23.352444,2.2409713),new Vec3D(13.708383,23.341423,1.38196),new Vec3D(18.121223,16.800156,-1.408399),new Vec3D(14.170723,5.400692,-9.990443),new Vec3D(1.2638988,5.675359,-14.175771)],
+  id2 : [new Vec3D(8.732038,14.822255,-1.5200856),new Vec3D(9.038901,13.024987,-1.0634063),new Vec3D(7.950618,11.592117,-2.753926),new Vec3D(4.8266277,9.272634,-4.6686325),new Vec3D(1.7722034,10.282405,-3.8232174)],
+  id3 : [new Vec3D(3.7666092,13.406981,0.09733784),new Vec3D(5.260392,12.530741,0.017792702),new Vec3D(5.028434,12.310113,-0.33768928),new Vec3D(5.8980618,11.386743,-0.8613366),new Vec3D(6.5387907,10.559207,-1.6091068)]
 },
 dbground4down1 : {
-  id0 : [new Vec2D(21.17-0.13,6.45),
-  new Vec2D(18.94,7.01),
-new Vec2D(15.57,5.85)],
-  id1 : [new Vec2D(26.88-0.13,7.64),
-  new Vec2D(24.16,9.42),
-new Vec2D(21.10,7.07)],
-  id2 : [new Vec2D(15.16-0.13,6.32),
-  new Vec2D(13.81,4.08),
-new Vec2D(10.58,3.82)],
-  id3 : [new Vec2D(9.04-0.13,7.81),
-  new Vec2D(8.41,7.95),
-new Vec2D(7.62,8.22)]
+  id0 : [new Vec3D(21.042244,6.395755,-0.88083565),new Vec3D(18.896183,7.0343304,1.4203647),new Vec3D(15.550146,6.0252457,4.528013)],
+  id1 : [new Vec3D(26.762253,7.5611405,-1.045618),new Vec3D(24.141445,9.4222355,0.4775343),new Vec3D(21.078636,7.2716274,3.1187224)],
+  id2 : [new Vec3D(15.021698,6.289343,-0.1380364),new Vec3D(13.769669,4.101524,1.1390035),new Vec3D(10.592283,3.9126306,2.884914)],
+  id3 : [new Vec3D(8.899147,7.7810326,1.4660649),new Vec3D(8.366932,7.9724684,1.2724967),new Vec3D(7.5935364,8.241333,0.9465202)]
 },
 dbground4down2 : {
-  id0 : [new Vec2D(20.51,9.29),
-  new Vec2D(18.81,9.30),
-new Vec2D(16.14,6.16)],
-  id1 : [new Vec2D(25.63,12.09),
-  new Vec2D(23.56,12.36),
-new Vec2D(21.74,6.97)],
-  id2 : [new Vec2D(14.84,7.33),
-  new Vec2D(13.60,6.35),
-new Vec2D(10.08,6.04)],
-  id3 : [new Vec2D(8.91,7.73),
-  new Vec2D(9.13,7.50),
-new Vec2D(9.16,7.32)]
+  id0 : [new Vec3D(20.462124,9.41309,-1.5514836),new Vec3D(18.781403,8.759173,-3.3791208),new Vec3D(16.084835,6.6722736,-4.134504)],
+  id1 : [new Vec3D(25.548126,12.266477,-1.8589386),new Vec3D(23.850471,11.536629,-2.5460057),new Vec3D(21.662872,7.81894,-2.8405101)],
+  id2 : [new Vec3D(14.841045,7.3913107,-0.49038798),new Vec3D(13.322975,6.1752996,-3.5099833),new Vec3D(10.037752,6.169712,-4.130734)],
+  id3 : [new Vec3D(8.973259,7.7141237,1.5157032),new Vec3D(9.215523,7.4778113,1.5736642),new Vec3D(9.20907,7.3216805,1.5622237)]
 },
 dbground4down3 : {
-  id0 : [new Vec2D(20.55,3.33),
-  new Vec2D(18.79,3.87),
-new Vec2D(15.32,4.44)],
-  id1 : [new Vec2D(26.12,1.62),
-  new Vec2D(24.29,2.43),
-new Vec2D(20.91,3.36)],
-  id2 : [new Vec2D(14.86,5.25),
-  new Vec2D(13.12,6.02),
-new Vec2D(9.95,7.15)],
-  id3 : [new Vec2D(8.86,7.75),
-  new Vec2D(8.97,7.58),
-new Vec2D(9.09,7.35)]
+  id0 : [new Vec3D(20.531197,3.1843104,-0.95921206),new Vec3D(18.605703,3.4533324,-3.150438),new Vec3D(15.408939,4.841724,-4.2786183)],
+  id1 : [new Vec3D(26.080547,1.4088736,-0.56384945),new Vec3D(24.049229,1.7886326,-1.8463715),new Vec3D(21.068226,4.0692925,-3.0622206)],
+  id2 : [new Vec3D(14.85968,5.175989,-0.13631067),new Vec3D(13.054455,5.8891783,-3.231335),new Vec3D(9.895321,7.232627,-4.178178)],
+  id3 : [new Vec3D(8.896414,7.7479568,1.5020182),new Vec3D(8.979279,7.580704,1.5668473),new Vec3D(9.103712,7.351696,1.5857229)]
 },
 dbground4down4 : {
-  id0 : [new Vec2D(21.11,6.62),
-  new Vec2D(17.96,7.02),
-new Vec2D(13.81,6.48)],
-  id1 : [new Vec2D(26.77,8.03),
-  new Vec2D(23.64,7.41),
-new Vec2D(19.60,7.02)],
-  id2 : [new Vec2D(15.06,6.39),
-  new Vec2D(13.16,4.37),
-new Vec2D(9.48,4.31)],
-  id3 : [new Vec2D(8.93,7.72),
-  new Vec2D(8.24,8.03),
-new Vec2D(7.52,8.26)]
+  id0 : [new Vec3D(21.089844,6.595627,-0.1516966),new Vec3D(17.87384,7.2049108,3.621931),new Vec3D(13.627274,6.344817,5.8132935)],
+  id1 : [new Vec3D(26.760132,7.9862084,-0.2854281),new Vec3D(23.572876,7.6341524,2.4217057),new Vec3D(19.428055,6.9449105,5.5057106)],
+  id2 : [new Vec3D(15.031815,6.3803296,0.101275966),new Vec3D(13.121302,4.479724,2.640573),new Vec3D(9.420219,4.2783356,3.0007715)],
+  id3 : [new Vec3D(8.8675995,7.7530785,1.5034654),new Vec3D(8.184298,8.054783,1.2381032),new Vec3D(7.496773,8.283305,0.89298224)]
 },
 dbground4down5 : {
-  id0 : [new Vec2D(20.59,9.14),
-  new Vec2D(20.73,8.59)],
-  id1 : [new Vec2D(25.69,11.47),
-  new Vec2D(25.73,11.07)],
-  id2 : [new Vec2D(14.86,7.23),
-  new Vec2D(14.98,6.80)],
-  id3 : [new Vec2D(8.85,7.75),
-  new Vec2D(8.93,7.79)]
+  id0 : [new Vec3D(20.586977,9.139627,-0.73633826),new Vec3D(20.741392,8.589129,-0.56706077)],
+  id1 : [new Vec3D(25.685078,11.473286,-2.3694973),new Vec3D(25.730453,11.069145,-2.317079)],
+  id2 : [new Vec3D(14.8630905,7.2351837,-0.088074416),new Vec3D(14.985777,6.798443,0.1377963)],
+  id3 : [new Vec3D(8.851038,7.753419,1.5000937),new Vec3D(8.938448,7.789525,1.5010481)]
 },
 dbground4forward : {
-  id0 : [new Vec2D(7.75-0.16,22.46),
-  new Vec2D(15.35-0.14,17.36),
-new Vec2D(16.76-0.11,12.44),
-new Vec2D(16.11-0.08,6.98)],
-  id1 : [new Vec2D(4.82-0.16,26.91),
-  new Vec2D(19.73-0.14,21.10),
-new Vec2D(22.54-0.11,13.09),
-new Vec2D(21.64-0.08,5.58)],
-  id2 : [new Vec2D(7.02-0.16,17.26),
-  new Vec2D(9.82-0.14,14.66),
-new Vec2D(10.57-0.11,12.39),
-new Vec2D(10.53-0.08,9.54)],
-  id3 : [new Vec2D(2.34-0.16,13.84),
-  new Vec2D(3.55-0.14,13.76),
-new Vec2D(5.34-0.11,13.22),
-new Vec2D(6.43-0.08,12.58)]
+  id0 : [new Vec3D(7.4908104,22.458708,-3.6427457),new Vec3D(15.235856,17.260742,-2.571138),new Vec3D(16.663933,12.430755,0.22588634),new Vec3D(16.060753,7.1547604,3.2865837)],
+  id1 : [new Vec3D(4.5254116,26.84126,-6.1132574),new Vec3D(19.61132,20.97472,-3.6507087),new Vec3D(22.434412,13.191599,-0.25000077),new Vec3D(21.628613,6.0065055,4.6223245)],
+  id2 : [new Vec3D(6.809414,17.260798,-2.3101501),new Vec3D(9.704156,14.606266,-1.3449345),new Vec3D(10.482702,12.351362,0.73103714),new Vec3D(10.452917,9.554119,2.4567244)],
+  id3 : [new Vec3D(2.1556282,13.836287,0.013828635),new Vec3D(3.434722,13.748543,-1.3480926),new Vec3D(5.2602844,13.214046,-1.3445178),new Vec3D(6.335779,12.591569,-0.44358897)]
 },
 dbground4up : {
-  id0 : [new Vec2D(-1.72-0.26,27.08),
-  new Vec2D(4.35-0.23,28.03),
-new Vec2D(11.82-0.21,24.78),
-new Vec2D(14.90-0.21,20.08),
-new Vec2D(15.40-0.23,12.73),
-new Vec2D(8.19-0.27,10.37)],
-  id1 : [new Vec2D(-7.03-0.26,29.52),
-  new Vec2D(1.57-0.23,33.13),
-new Vec2D(13.84-0.21,30.24),
-new Vec2D(18.47-0.21,24.70),
-new Vec2D(21.19-0.23,13.36),
-new Vec2D(9.59-0.27,10.62)],
-  id2 : [new Vec2D(2.67-0.26,22.97),
-  new Vec2D(5.41-0.23,22.16),
-new Vec2D(7.79-0.21,20.32),
-new Vec2D(9.59-0.21,17.46),
-new Vec2D(9.55-0.23,14.28),
-new Vec2D(8.31-0.27,12.21)],
-  id3 : [new Vec2D(0.06-0.26,19.48),
-  new Vec2D(0.67-0.23,19.77),
-new Vec2D(2.61-0.21,19.64),
-new Vec2D(4.88-0.21,18.70),
-new Vec2D(6.43-0.23,17.34),
-new Vec2D(6.56-0.27,16.51)]
+  id0 : [new Vec3D(-2.040268,26.044462,-2.9033754),new Vec3D(3.9535294,26.713493,-1.76958),new Vec3D(11.64582,22.932184,-0.34193912),new Vec3D(14.693738,18.090502,0.097201765),new Vec3D(15.056649,10.354624,1.0983422),new Vec3D(8.028411,8.322779,6.725799)],
+  id1 : [new Vec3D(-7.3721232,28.397501,-2.5314841),new Vec3D(1.0158472,31.755692,-1.9933082),new Vec3D(13.685622,28.386475,-0.78206116),new Vec3D(18.270794,22.706568,0.07705456),new Vec3D(20.876255,10.74772,1.383735),new Vec3D(9.524882,8.417371,12.369858)],
+  id2 : [new Vec3D(2.3933554,21.926031,-2.7137825),new Vec3D(5.174509,20.783937,-1.2583159),new Vec3D(7.6000357,18.491177,0.24364044),new Vec3D(9.374118,15.484274,0.37222993),new Vec3D(9.279178,12.139956,1.1704911),new Vec3D(8.057422,10.290774,1.3253717)],
+  id3 : [new Vec3D(-0.20869732,18.240908,1.3016951),new Vec3D(0.43784523,18.211798,-0.16736092),new Vec3D(2.4111166,17.825054,-1.1108456),new Vec3D(4.6730814,16.72135,-1.579671),new Vec3D(6.2052965,15.33972,-1.4831356),new Vec3D(6.2942514,14.665586,-1.0834954)]
 },
 dbair : {
-  id0 : [new Vec2D(4.35,19.82),
-  new Vec2D(11.56,12.39),
-new Vec2D(9.50,5.19)],
-  id1 : [new Vec2D(1.79,25.05),
-  new Vec2D(16.67,15.21),
-new Vec2D(14.53,2.24)],
-  id2 : [new Vec2D(4.24,14.07),
-  new Vec2D(5.68,11.56),
-new Vec2D(5.29,9.46)],
-  id3 : [new Vec2D(-1.91,14.46),
-  new Vec2D(-0.31,14.16),
-new Vec2D(2.29,11.91)]
+  id0 : [new Vec3D(5.1331344,18.979479,1.8589205),new Vec3D(11.529018,12.019905,-0.16548948),new Vec3D(9.523065,4.7278967,-1.3212438)],
+  id1 : [new Vec3D(3.152778,24.466286,2.136297),new Vec3D(16.579058,14.945778,-0.36587813),new Vec3D(14.60087,1.8649457,-0.97027653)],
+  id2 : [new Vec3D(4.3995595,13.259991,0.6999204),new Vec3D(5.679494,11.117347,-0.92933327),new Vec3D(5.2867103,8.940982,-1.764041)],
+  id3 : [new Vec3D(-1.6031,14.31839,-1.8160388),new Vec3D(-0.32300323,13.7075405,-1.1058006),new Vec3D(2.2916832,11.404497,1.178391)]
 },
 dbair2forward : {
-  id0 : [new Vec2D(10.47,8.09),
-  new Vec2D(12.58,6.03),
-new Vec2D(12.53,6.03)],
-  id1 : [new Vec2D(15.86,5.95),
-  new Vec2D(17.99,3.84),
-new Vec2D(17.97,3.90)],
-  id2 : [new Vec2D(4.76,10.02),
-  new Vec2D(6.85,8.81),
-new Vec2D(6.82,8.81)],
-  id3 : [new Vec2D(1.39,11.76),
-  new Vec2D(1.43,12.30),
-new Vec2D(1.38,12.34)]
+  id0 : [new Vec3D(10.531519,7.7829213,-4.1219068),new Vec3D(12.545233,5.9442835,-1.2478873),new Vec3D(12.246966,5.411433,-0.88212013)],
+  id1 : [new Vec3D(15.879235,5.4454117,-3.917539),new Vec3D(17.928116,3.6976316,-0.96346277),new Vec3D(17.217682,2.3656259,-0.5374253)],
+  id2 : [new Vec3D(4.847967,9.874474,-4.1812286),new Vec3D(6.8482914,8.780915,-1.176464),new Vec3D(6.787012,8.703993,-1.1423601)],
+  id3 : [new Vec3D(1.4175904,11.7631855,0.8316615),new Vec3D(1.4260366,12.296237,-0.24743986),new Vec3D(1.3809431,12.337754,-0.42038298)]
 },
 dbair2up : {
-  id0 : [new Vec2D(5.11,9.38),
-  new Vec2D(9.48,15.48),
-new Vec2D(8.06,20.27),
-new Vec2D(3.92,23.87)],
-  id1 : [new Vec2D(10.46,7.94),
-  new Vec2D(15.00,17.39),
-new Vec2D(11.83,24.72),
-new Vec2D(4.22,29.70)],
-  id2 : [new Vec2D(0.52,12.31),
-  new Vec2D(3.51,15.13),
-new Vec2D(3.01,17.06),
-new Vec2D(1.77,18.31)],
-  id3 : [new Vec2D(-2.20,13.84),
-  new Vec2D(-2.89,14.16),
-new Vec2D(-3.08,14.29),
-new Vec2D(-2.98,14.36)]
+  id0 : [new Vec3D(5.1917515,9.504971,-7.3576045),new Vec3D(9.442375,15.567568,-2.0527737),new Vec3D(8.010481,20.338758,-1.3234196),new Vec3D(2.8108401,24.268301,-0.36634955)],
+  id1 : [new Vec3D(10.581273,8.169549,-9.166885),new Vec3D(14.942648,17.523975,-1.9003578),new Vec3D(11.749706,24.816515,-1.0556858),new Vec3D(2.4099805,30.090963,-0.5656246)],
+  id2 : [new Vec3D(0.5269775,12.352425,-4.9117064),new Vec3D(3.4749684,15.175235,-1.979573),new Vec3D(2.9802408,17.087023,-1.4782661),new Vec3D(1.3845605,18.47039,-0.7873592)],
+  id3 : [new Vec3D(-2.2699852,13.809084,-0.41511285),new Vec3D(-2.9164786,14.136304,-0.943231),new Vec3D(-3.0889127,14.274597,-1.0178818),new Vec3D(-2.9805076,14.3577,-1.1311836)]
 },
 dbair3down : {
-  id0 : [new Vec2D(5.56,10.46),
-  new Vec2D(7.38,6.58),
-new Vec2D(7.23,6.55),
-new Vec2D(7.19,6.50)],
-  id1 : [new Vec2D(3.27,12.44),
-  new Vec2D(11.59,2.75),
-new Vec2D(11.37,2.67),
-new Vec2D(11.30,2.59)],
-  id2 : [new Vec2D(3.91,11.60),
-  new Vec2D(3.40,11.19),
-new Vec2D(3.31,11.20),
-new Vec2D(3.30,11.17)],
-  id3 : [new Vec2D(-1.03,13.94),
-  new Vec2D(-1.03,13.89),
-new Vec2D(-1.00,13.87),
-new Vec2D(-0.99,13.88)]
+  id0 : [new Vec3D(5.556157,10.449408,3.6419227),new Vec3D(7.3730125,6.57548,-0.06565354),new Vec3D(7.226731,6.545568,0.017210176),new Vec3D(7.0353613,6.544699,0.8261443)],
+  id1 : [new Vec3D(3.2627368,12.421587,8.637372),new Vec3D(11.588405,2.750041,1.23829),new Vec3D(11.367694,2.6740403,1.419881),new Vec3D(11.022166,2.6675892,2.6086087)],
+  id2 : [new Vec3D(3.9095469,11.595178,0.0017087943),new Vec3D(3.3976407,11.1885605,-0.47632053),new Vec3D(3.3067522,11.197286,-0.48080492),new Vec3D(3.1863825,11.202512,-0.035755835)],
+  id3 : [new Vec3D(-1.0286593,13.944602,-3.2116385),new Vec3D(-1.0306536,13.887575,-3.3148515),new Vec3D(-1.0066241,13.865593,-3.4463012),new Vec3D(-0.84236187,13.861016,-3.3827796)]
 },
 dbair3forward : {
-  id0 : [new Vec2D(9.20,8.07),
-  new Vec2D(11.86,9.69),
-new Vec2D(12.27,12.54),
-new Vec2D(7.42,15.50)],
-  id1 : [new Vec2D(12.24,6.78),
-  new Vec2D(17.37,9.25),
-new Vec2D(17.94,13.87),
-new Vec2D(10.56,18.45)],
-  id2 : [new Vec2D(4.68,9.88),
-  new Vec2D(5.94,10.37),
-new Vec2D(6.35,11.24),
-new Vec2D(4.77,12.52)],
-  id3 : [new Vec2D(-0.76,12.73),
-  new Vec2D(0.26,12.40),
-new Vec2D(1.14,11.87),
-new Vec2D(1.73,11.22)]
+  id0 : [new Vec3D(9.306051,8.160491,4.481362),new Vec3D(11.910742,10.029526,0.14495929),new Vec3D(12.225916,13.027415,-2.718325),new Vec3D(7.5960608,16.557156,-8.913178)],
+  id1 : [new Vec3D(12.40442,6.868281,9.259865),new Vec3D(17.44518,9.702634,1.9798758),new Vec3D(17.827103,14.488694,-1.9468565),new Vec3D(10.83295,20.005322,-12.339034)],
+  id2 : [new Vec3D(4.7234907,9.930472,0.9017314),new Vec3D(5.9644628,10.5378,-0.98979634),new Vec3D(6.3391104,11.507761,-2.5706964),new Vec3D(4.828391,13.006979,-4.8266206)],
+  id3 : [new Vec3D(-0.77468735,12.699364,-0.17844763),new Vec3D(0.2170296,12.304002,-0.11707176),new Vec3D(1.008222,11.729127,-0.036425617),new Vec3D(1.6039433,11.017534,0.26189166)]
 },
 dbair3up : {
-  id0 : [new Vec2D(3.23,19.33),
-  new Vec2D(7.85,18.08),
-new Vec2D(9.69,9.79),
-new Vec2D(5.30,6.09),
-new Vec2D(-3.15,6.46)],
-  id1 : [new Vec2D(-0.80,23.41),
-  new Vec2D(9.23,23.75),
-new Vec2D(15.18,11.52),
-new Vec2D(10.49,5.29),
-new Vec2D(-2.14,4.43)],
-  id2 : [new Vec2D(4.82,14.84),
-  new Vec2D(4.94,13.19),
-new Vec2D(3.91,10.51),
-new Vec2D(1.13,9.31),
-new Vec2D(-1.86,9.89)],
-  id3 : [new Vec2D(0.01,13.39),
-  new Vec2D(1.23,12.52),
-new Vec2D(0.98,12.27),
-new Vec2D(2.14,11.35),
-new Vec2D(2.85,10.55)]
+  id0 : [new Vec3D(3.2293363,19.3308,1.3632507),new Vec3D(7.8607936,18.076292,0.7328258),new Vec3D(9.660721,9.467339,-1.9228246),new Vec3D(5.230762,6.02227,-7.2931814),new Vec3D(-3.8993626,6.9860554,-8.391586)],
+  id1 : [new Vec3D(-0.80200696,23.410036,2.464107),new Vec3D(9.252868,23.74139,1.0021974),new Vec3D(15.1983795,11.09963,-1.0432019),new Vec3D(10.383975,5.2029037,-9.91555),new Vec3D(-3.1939356,4.925989,-13.810283)],
+  id2 : [new Vec3D(4.8171525,14.836395,-1.822184),new Vec3D(4.946846,13.181944,-1.1358668),new Vec3D(3.8976965,10.287637,-3.1630573),new Vec3D(1.0769482,9.262013,-4.6210976),new Vec3D(-2.1607738,10.15435,-3.772839)],
+  id3 : [new Vec3D(0.0068512484,13.387293,0.18089646),new Vec3D(1.2350026,12.520165,0.05390884),new Vec3D(1.0209233,12.289298,-0.26259848),new Vec3D(2.1267867,11.361599,-0.8131817),new Vec3D(2.8146687,10.611883,-1.6491228)]
 },
 dbair4down1 : {
-  id0 : [new Vec2D(12.28,8.31),
-  new Vec2D(10.38,7.90),
-new Vec2D(7.21,6.87)],
-  id1 : [new Vec2D(17.98,9.57),
-  new Vec2D(15.99,9.47),
-new Vec2D(12.93,7.55)],
-  id2 : [new Vec2D(6.27,8.12),
-  new Vec2D(5.06,5.91),
-new Vec2D(2.13,5.76)],
-  id3 : [new Vec2D(0.18,9.54),
-  new Vec2D(-0.30,9.68),
-new Vec2D(-1.06,9.97)]
+  id0 : [new Vec3D(12.270231,8.346141,-0.8923213),new Vec3D(10.3153515,7.954042,3.1989965),new Vec3D(7.214392,6.978258,5.2576895)],
+  id1 : [new Vec3D(17.969727,9.607375,-1.0620455),new Vec3D(15.9179,9.532814,3.6709316),new Vec3D(12.9367485,7.632695,4.2932625)],
+  id2 : [new Vec3D(6.252919,8.139168,-0.14474186),new Vec3D(5.023191,5.9452715,1.4900137),new Vec3D(2.1364202,5.8342705,3.1009583)],
+  id3 : [new Vec3D(0.10677765,9.529912,1.4600327),new Vec3D(-0.38421577,9.7162485,1.2596973),new Vec3D(-1.1025385,10.001266,0.9110921)]
 },
 dbair4down2 : {
-  id0 : [new Vec2D(11.82,10.87),
-  new Vec2D(10.11,10.94),
-new Vec2D(7.41,7.82)],
-  id1 : [new Vec2D(16.97,13.60),
-  new Vec2D(14.88,13.97),
-new Vec2D(13.02,8.58)],
-  id2 : [new Vec2D(6.12,8.99),
-  new Vec2D(4.87,8.04),
-new Vec2D(1.35,7.75)],
-  id3 : [new Vec2D(0.26,9.47),
-  new Vec2D(0.45,9.22),
-new Vec2D(0.49,9.04)]
+  id0 : [new Vec3D(11.837216,10.782563,-1.5671782),new Vec3D(10.105629,10.298836,-3.386095),new Vec3D(7.3577623,8.3687,-4.115849)],
+  id1 : [new Vec3D(17.004866,13.484308,-1.8830229),new Vec3D(15.226482,12.983365,-2.5651572),new Vec3D(12.94061,9.473167,-2.8059845)],
+  id2 : [new Vec3D(6.1586823,8.931064,-0.5013557),new Vec3D(4.6002812,7.8159432,-3.5040808),new Vec3D(1.3078578,7.9013023,-4.123427)],
+  id3 : [new Vec3D(0.3050313,9.4335375,1.5063982),new Vec3D(0.51046294,9.185522,1.5773365),new Vec3D(0.47607985,9.025892,1.5771738)]
 },
 dbair4down3 : {
-  id0 : [new Vec2D(11.81,5.10),
-  new Vec2D(10.06,5.71),
-new Vec2D(6.59,6.23)],
-  id1 : [new Vec2D(17.39,3.40),
-  new Vec2D(15.58,4.32),
-new Vec2D(12.19,5.17)],
-  id2 : [new Vec2D(6.11,7.00),
-  new Vec2D(4.37,7.80),
-new Vec2D(1.21,8.90)],
-  id3 : [new Vec2D(0.16,9.49),
-  new Vec2D(0.24,9.32),
-new Vec2D(0.38,9.08)]
+  id0 : [new Vec3D(11.820212,5.170934,-0.9270663),new Vec3D(9.901875,5.3994575,-3.13067),new Vec3D(6.6767282,6.705841,-4.2700562)],
+  id1 : [new Vec3D(17.403957,3.5087748,-0.5235475),new Vec3D(15.377341,3.843884,-1.8255914),new Vec3D(12.347459,6.035818,-3.046265)],
+  id2 : [new Vec3D(6.1055956,7.038324,-0.111101456),new Vec3D(4.3017955,7.720946,-3.21045),new Vec3D(1.1205698,8.996633,-4.176102)],
+  id3 : [new Vec3D(0.08400762,9.4724455,1.5242304),new Vec3D(0.17383958,9.324172,1.5747684),new Vec3D(0.31036556,9.109159,1.5863636)]
 },
 dbair4down4 : {
-  id0 : [new Vec2D(12.36,8.44),
-  new Vec2D(9.24,8.76),
-new Vec2D(5.05,8.29)],
-  id1 : [new Vec2D(18.01,9.89),
-  new Vec2D(14.92,9.13),
-new Vec2D(10.65,8.87)],
-  id2 : [new Vec2D(6.31,8.16),
-  new Vec2D(4.43,6.11),
-new Vec2D(0.83,6.17)],
-  id3 : [new Vec2D(0.24,9.47),
-  new Vec2D(-0.44,9.77),
-new Vec2D(-1.16,10.01)]
+  id0 : [new Vec3D(12.335185,8.443206,-0.20192476),new Vec3D(9.155994,8.946144,3.563919),new Vec3D(5.0640683,8.478529,6.039424)],
+  id1 : [new Vec3D(17.990988,9.888952,-0.36159465),new Vec3D(14.847965,9.361794,2.3259885),new Vec3D(10.855527,9.128166,5.6642485)],
+  id2 : [new Vec3D(6.280446,8.169703,0.07214164),new Vec3D(4.3929853,6.2247024,2.6222665),new Vec3D(0.8612385,6.249119,3.3472867)],
+  id3 : [new Vec3D(0.11492286,9.506065,1.48442),new Vec3D(-0.5514295,9.799815,1.2227703),new Vec3D(-1.2334443,10.021491,0.88755023)]
 },
 dbair4down5 : {
-  id0 : [new Vec2D(11.79,11.03),
-  new Vec2D(11.74,10.05)],
-  id1 : [new Vec2D(16.86,13.42),
-  new Vec2D(16.19,12.88)],
-  id2 : [new Vec2D(6.09,9.05),
-  new Vec2D(6.29,7.91)],
-  id3 : [new Vec2D(0.12,9.49),
-  new Vec2D(0.25,9.53)]
+  id0 : [new Vec3D(11.786189,11.026058,-0.7143813),new Vec3D(11.738428,10.048354,-1.014064)],
+  id1 : [new Vec3D(16.85693,13.424459,-2.338892),new Vec3D(16.186062,12.877389,-3.5278058)],
+  id2 : [new Vec3D(6.085991,9.048607,-0.07626531),new Vec3D(6.281811,7.906346,0.54571515)],
+  id3 : [new Vec3D(0.06641296,9.49183,1.5031239),new Vec3D(0.18997091,9.532221,1.5132332)]
 },
 dbair4forward : {
-  id0 : [new Vec2D(2.87,22.48),
-  new Vec2D(10.00,17.42),
-new Vec2D(11.05,12.44),
-new Vec2D(10.19,7.07)],
-  id1 : [new Vec2D(-0.05,26.92),
-  new Vec2D(14.40,21.18),
-new Vec2D(16.85,13.09),
-new Vec2D(15.73,5.74)],
-  id2 : [new Vec2D(2.03,17.26),
-  new Vec2D(4.44,14.69),
-new Vec2D(4.86,12.40),
-new Vec2D(4.61,9.58)],
-  id3 : [new Vec2D(-2.71,13.83),
-  new Vec2D(-1.83,13.75),
-new Vec2D(-0.35,13.21),
-new Vec2D(0.51,12.58)]
+  id0 : [new Vec3D(2.6996996,22.473598,-3.5067034),new Vec3D(10.032019,17.316425,-2.1979263),new Vec3D(11.073228,12.399136,0.4538452),new Vec3D(10.217655,7.215293,3.3162205)],
+  id1 : [new Vec3D(-0.17518625,26.858686,-6.07766),new Vec3D(14.445019,21.046219,-3.0451837),new Vec3D(16.860926,13.110809,0.13785958),new Vec3D(15.781245,6.0816956,4.6819434)],
+  id2 : [new Vec3D(1.9792687,17.26831,-2.2201147),new Vec3D(4.461389,14.636282,-1.2200514),new Vec3D(4.8783035,12.355177,0.78846204),new Vec3D(4.605367,9.592437,2.4268537)],
+  id3 : [new Vec3D(-2.7391386,13.826312,-0.073343694),new Vec3D(-1.8179935,13.739764,-1.4091009),new Vec3D(-0.32057312,13.207005,-1.4082531),new Vec3D(0.50124335,12.585075,-0.5363694)]
 },
 dbair4up : {
-  id0 : [new Vec2D(-3.76,22.93),
-  new Vec2D(1.42,23.11),
-new Vec2D(8.70,20.12),
-new Vec2D(11.57,15.69),
-new Vec2D(11.86,8.82),
-new Vec2D(4.65,7.07)],
-  id1 : [new Vec2D(-7.94,26.72),
-  new Vec2D(-1.49,28.14),
-new Vec2D(10.69,25.59),
-new Vec2D(15.14,20.31),
-new Vec2D(17.65,9.45),
-new Vec2D(6.14,7.29)],
-  id2 : [new Vec2D(-1.11,17.99),
-  new Vec2D(2.63,17.25),
-new Vec2D(4.70,15.63),
-new Vec2D(6.25,13.08),
-new Vec2D(6.01,10.37),
-new Vec2D(4.66,8.94)],
-  id3 : [new Vec2D(-2.37,14.48),
-  new Vec2D(-2.13,14.83),
-new Vec2D(-0.48,14.93),
-new Vec2D(1.53,14.33),
-new Vec2D(2.91,13.42),
-new Vec2D(2.95,13.23)]
+  id0 : [new Vec3D(-3.7981312,23.00016,-4.908495),new Vec3D(1.4938989,23.177723,-2.683296),new Vec3D(8.704701,20.184723,-0.28629026),new Vec3D(11.470168,15.9589815,0.03341544),new Vec3D(11.750771,8.544583,1.1783663),new Vec3D(4.7253046,6.965493,6.7407956)],
+  id1 : [new Vec3D(-7.98822,26.78643,-6.3954625),new Vec3D(-1.395889,28.215961,-3.2907968),new Vec3D(10.688456,25.658922,-0.73531973),new Vec3D(14.946684,20.651224,0.01171795),new Vec3D(17.568733,8.958952,1.4671383),new Vec3D(6.288938,7.05077,12.366768)],
+  id2 : [new Vec3D(-1.1316695,18.047878,-2.6697488),new Vec3D(2.6714885,17.313526,-1.6193721),new Vec3D(4.7014775,15.70263,0.2760008),new Vec3D(6.2112865,13.23672,0.34684736),new Vec3D(5.9685245,10.315632,1.2045101),new Vec3D(4.671897,8.954761,1.3485842)],
+  id3 : [new Vec3D(-2.3785262,14.513669,1.2814598),new Vec3D(-2.1347091,14.891517,-0.11062787),new Vec3D(-0.47848073,15.002959,-1.0921428),new Vec3D(1.5331286,14.3944025,-1.583504),new Vec3D(2.91856,13.488296,-1.4973916),new Vec3D(2.9543283,13.305749,-1.0855576)]
 },
 ledgegetupquick : {
-  id0 : [new Vec2D(8.82-1.13,26.36),
-  new Vec2D(18.25-1.50,17.20),
-new Vec2D(18.79-1.86,6.96),
-new Vec2D(14.72-2.22,0.56)],
-  id1 : [new Vec2D(8.56-1.13,23.07),
-  new Vec2D(15.33-1.50,15.56),
-new Vec2D(15.26-1.86,7.01),
-new Vec2D(11.31-2.22,1.65)],
-  id2 : [new Vec2D(7.28-1.13,17.36),
-  new Vec2D(9.74-1.50,13.24),
-new Vec2D(9.05-1.86,7.84),
-new Vec2D(5.65-2.22,4.30)]
+  id0 : [new Vec3D(7.6073594,26.571493,-5.5705614),new Vec3D(16.809687,17.44451,-2.0441628),new Vec3D(16.475506,7.4136724,4.407136),new Vec3D(10.989294,0.59146285,8.605216)],
+  id1 : [new Vec3D(7.3491464,23.253048,-4.215462),new Vec3D(13.810726,15.76783,-0.9905821),new Vec3D(12.883319,7.3153706,4.3674655),new Vec3D(7.739907,1.6673511,7.510234)],
+  id2 : [new Vec3D(6.0691934,17.469286,-1.9481301),new Vec3D(8.116339,13.385199,0.40553463),new Vec3D(6.610874,7.901186,3.929784),new Vec3D(2.404902,4.3036222,5.4359803)]
 },
 ledgegetupslow : {
-  id0 : [new Vec2D(18.13-0.51,4.77),
-  new Vec2D(21.39-0.98,11.07),
-new Vec2D(17.78-1.45,20.91),
-new Vec2D(8.74-1.91,25.93)],
-  id1 : [new Vec2D(16.26-0.51,6.33),
-  new Vec2D(18.17-0.98,12.32),
-new Vec2D(14.45-1.45,19.59),
-new Vec2D(6.76-1.91,23.23)],
-  id2 : [new Vec2D(12.55-0.51,8.75),
-  new Vec2D(12.66-0.98,13.58),
-new Vec2D(9.21-1.45,16.98),
-new Vec2D(4.26-1.91,18.52)]
+  id0 : [new Vec3D(17.10859,4.1854377,4.854277),new Vec3D(20.319202,11.075829,-0.470268),new Vec3D(15.765776,21.629656,-3.8776422),new Vec3D(5.722149,26.535364,-5.6827116)],
+  id1 : [new Vec3D(15.398771,5.7485538,2.1068723),new Vec3D(17.104164,12.371856,-1.4183623),new Vec3D(12.518015,20.1071,-4.098811),new Vec3D(4.0472794,23.566086,-4.5455074)],
+  id2 : [new Vec3D(11.9403305,8.248881,-1.8925495),new Vec3D(11.591299,13.712223,-2.850361),new Vec3D(7.4570317,17.179766,-3.8025045),new Vec3D(2.0451484,18.514833,-2.3593426)]
 },
 neutralspecialground : {
-  id0 : [new Vec2D(8.15,20.65),
-  new Vec2D(15.85,16.32),
-new Vec2D(17.84,8.04),
-new Vec2D(15.37,3.44),
-new Vec2D(13.33,1.15),
-new Vec2D(13.54,0.62)],
-  id1 : [new Vec2D(10.27,15.97),
-  new Vec2D(12.74,12.26),
-new Vec2D(12.95,8.01),
-new Vec2D(10.96,4.77),
-new Vec2D(10.03,4.11),
-new Vec2D(10.13,3.48)],
-  id2 : [new Vec2D(5.18,8.27),
-  new Vec2D(5.69,6.91),
-new Vec2D(5.80,5.67),
-new Vec2D(5.73,5.03),
-new Vec2D(5.70,4.53),
-new Vec2D(5.77,3.85)],
-  id3 : [new Vec2D(2.93,24.49),
-  new Vec2D(17.81,22.47),
-new Vec2D(24.04,10.06),
-new Vec2D(21.74,4.64),
-new Vec2D(19.80,1.02),
-new Vec2D(20.00,0.97)]
+  id0 : [new Vec3D(8.083605,20.698397,-0.6754043),new Vec3D(16.501143,15.59686,-1.372618),new Vec3D(17.796421,7.658293,-0.19549666),new Vec3D(15.352026,3.412765,0.03687343),new Vec3D(13.332176,1.1527003,0.13762501),new Vec3D(13.541004,0.59113634,-0.16366081)],
+  id1 : [new Vec3D(10.213229,16.014763,-1.2232027),new Vec3D(12.770472,12.072646,-1.6003404),new Vec3D(12.890982,7.7794933,-1.2076874),new Vec3D(10.936155,4.760523,-1.5601821),new Vec3D(10.025483,4.108865,-1.2678152),new Vec3D(10.13148,3.4831045,-1.4941968)],
+  id2 : [new Vec3D(5.945311,13.738661,0.27569854),new Vec3D(7.708537,12.093074,0.5830255),new Vec3D(9.0639105,10.315662,0.66366786),new Vec3D(9.755472,9.055509,0.5445833),new Vec3D(10.031868,8.282289,0.35344833),new Vec3D(10.108342,7.602218,0.3110603)],
+  id3 : [new Vec3D(2.9179664,24.56902,-1.5485574),new Vec3D(19.179699,21.316654,-2.965485),new Vec3D(24.009817,9.580243,-0.552912),new Vec3D(21.720604,4.7045474,0.48460257),new Vec3D(19.80051,1.0172957,0.89277875),new Vec3D(19.993628,0.8676412,0.68198544)]
 },
 neutralspecialair : {
-  id0 : [new Vec2D(6.70,20.09),
-  new Vec2D(14.32,17.01),
-new Vec2D(17.69,7.25),
-new Vec2D(13.33,1.00),
-new Vec2D(12.50,-0.48),
-new Vec2D(10.72,-1.75)],
-  id1 : [new Vec2D(9.82,16.12),
-  new Vec2D(12.50,12.52),
-new Vec2D(12.67,8.00),
-new Vec2D(10.03,4.11),
-new Vec2D(9.54,3.06),
-new Vec2D(8.85,2.53)],
-  id2 : [new Vec2D(5.18,8.26),
-  new Vec2D(5.78,6.87),
-new Vec2D(5.77,5.63),
-new Vec2D(5.70,4.53),
-new Vec2D(5.77,3.98),
-new Vec2D(5.82,3.85)],
-  id3 : [new Vec2D(0.70,22.63),
-  new Vec2D(13.68,23.49),
-new Vec2D(24.02,8.79),
-new Vec2D(19.82,0.71),
-new Vec2D(18.79,-2.15),
-new Vec2D(15.51,-6.15)]
+  id0 : [new Vec3D(6.4685044,20.174389,0.26012623),new Vec3D(14.101887,17.259212,0.0059487894),new Vec3D(17.706335,7.5951185,-1.3513579),new Vec3D(13.323877,0.98696846,-0.393369),new Vec3D(12.657526,-0.39738825,-0.14260092),new Vec3D(10.9263935,-1.7605815,0.33638448)],
+  id1 : [new Vec3D(9.664466,16.235899,-0.81588364),new Vec3D(12.416573,12.675429,-1.3815074),new Vec3D(12.660577,8.131838,-1.6129527),new Vec3D(10.006001,4.069769,-1.4608251),new Vec3D(9.555899,3.0305467,-1.4358553),new Vec3D(8.941968,2.4979255,-1.2816449)],
+  id2 : [new Vec3D(5.0994596,13.816125,0.1771437),new Vec3D(7.5268784,12.12314,0.931357),new Vec3D(9.413507,10.014889,0.8310964),new Vec3D(10.154529,8.1034565,0.47651914),new Vec3D(10.367829,7.1496353,0.47254175),new Vec3D(10.415212,6.523212,0.65452117)],
+  id3 : [new Vec3D(0.48666048,22.725536,-0.11014345),new Vec3D(13.218103,23.70913,-0.20716712),new Vec3D(23.953024,9.416837,-1.6482471),new Vec3D(19.81316,0.73361814,0.109574944),new Vec3D(19.00292,-1.8539822,0.06288311),new Vec3D(15.811707,-6.06054,0.60469604)]
 },
 downspecialground : {
-  id0 : [new Vec2D(0,8)]
+  id0 : [new Vec3D(0,10.750647,0)]
 },
 downspecialair : {
-  id0 : [new Vec2D(0,8)]
+  id0 : [new Vec3D(0,10.750647,0)]
 },
 downspecialground2 : {
-  id0 : [new Vec2D(1.81,0.91),
-  new Vec2D(15.13,1.33),
-new Vec2D(19.09,7.68),
-new Vec2D(19.18,11.78),
-new Vec2D(18.33,16.01),
-new Vec2D(16.13,19.54),
-new Vec2D(10.90,22.93)],
-  id1 : [new Vec2D(5.36,3.54),
-  new Vec2D(13.65,5.57),
-new Vec2D(15.42,10.26),
-new Vec2D(14.90,13.12),
-new Vec2D(13.86,15.57),
-new Vec2D(12.08,17.59),
-new Vec2D(8.01,19.52)],
-  id2 : [new Vec2D(7.34,8.21),
-  new Vec2D(10.13,9.41),
-new Vec2D(10.33,11.54),
-new Vec2D(9.65,12.82),
-new Vec2D(9.16,13.22),
-new Vec2D(8.64,13.60),
-new Vec2D(6.72,14.45)],
-  id3 : [new Vec2D(4.06,13.30),
-  new Vec2D(4.38,12.76),
-new Vec2D(4.63,12.22),
-new Vec2D(5.42,11.62),
-new Vec2D(6.27,10.96),
-new Vec2D(7.04,10.38),
-new Vec2D(7.59,9.97)]
+  id0 : [new Vec3D(1.8234887,0.8908248,2.6127036),new Vec3D(15.113099,1.3141713,-2.2426305),new Vec3D(18.565418,6.6209555,-2.4777486),new Vec3D(19.180695,11.587787,-2.9583514),new Vec3D(18.372711,15.765314,-4.1700754),new Vec3D(16.15142,19.421814,-4.118463),new Vec3D(10.947578,22.906754,-3.936629)],
+  id1 : [new Vec3D(5.3722687,3.5229948,1.8017814),new Vec3D(13.640294,5.557815,-2.2882621),new Vec3D(15.226053,9.625676,-2.4709296),new Vec3D(14.914161,12.99268,-2.9063442),new Vec3D(13.904071,15.421443,-3.8655202),new Vec3D(12.081884,17.534058,-3.8839211),new Vec3D(8.012877,19.523478,-4.284091)],
+  id2 : [new Vec3D(7.3427973,8.197458,0.63583523),new Vec3D(10.129355,9.401753,-1.6860254),new Vec3D(10.332025,11.512545,-2.2684598),new Vec3D(9.66091,12.770678,-2.7263205),new Vec3D(9.170868,13.157675,-3.364437),new Vec3D(8.586819,13.596171,-3.6716104),new Vec3D(6.6973724,14.460136,-3.970416)],
+  id3 : [new Vec3D(4.0621796,13.296513,-1.0300801),new Vec3D(4.4035296,12.745602,-0.47421026),new Vec3D(4.6907415,12.187786,0.027268529),new Vec3D(5.517337,11.559548,0.2394998),new Vec3D(6.38955,10.888355,0.16084969),new Vec3D(7.151482,10.301397,-0.21946943),new Vec3D(7.636176,9.937585,-0.687083)]
 },
 downspecialair2 : {
-  id0 : [new Vec2D(5.66,3.08),
-  new Vec2D(18.53,6.00),
-new Vec2D(20.01,13.39),
-new Vec2D(18.66,16.83),
-new Vec2D(16.80,19.12),
-new Vec2D(12.87,21.93),
-new Vec2D(9.16,23.02)],
-  id1 : [new Vec2D(8.54,5.83),
-  new Vec2D(15.37,9.19),
-new Vec2D(15.52,13.30),
-new Vec2D(14.41,15.46),
-new Vec2D(12.85,16.99),
-new Vec2D(9.67,18.82),
-new Vec2D(6.63,19.53)],
-  id2 : [new Vec2D(9.76,10.28),
-  new Vec2D(10.48,10.86),
-new Vec2D(10.57,11.58),
-new Vec2D(10.13,12.38),
-new Vec2D(9.32,13.13),
-new Vec2D(7.69,14.07),
-new Vec2D(6.03,14.57)],
-  id3 : [new Vec2D(3.82,13.25),
-  new Vec2D(4.36,12.60),
-new Vec2D(5.06,11.90),
-new Vec2D(5.89,11.18),
-new Vec2D(6.79,10.47),
-new Vec2D(7.54,9.93),
-new Vec2D(7.98,9.67)]
+  id0 : [new Vec3D(5.681406,3.054824,4.308274),new Vec3D(18.532845,6.006626,-1.2880492),new Vec3D(20.01583,13.405981,-1.4562408),new Vec3D(18.642128,16.860497,-1.7128483),new Vec3D(16.65326,19.214535,-4.512976),new Vec3D(13.166296,21.887218,-5.0413413),new Vec3D(8.998882,23.109138,-6.9066496)],
+  id1 : [new Vec3D(8.555707,5.816207,2.2363405),new Vec3D(15.3717785,9.194531,-1.4451536),new Vec3D(15.524851,13.3144455,-1.4063404),new Vec3D(14.38058,15.482667,-2.0600514),new Vec3D(12.711667,17.069515,-4.306873),new Vec3D(9.857851,18.859842,-4.7787776),new Vec3D(6.5043592,19.600035,-5.6247344)],
+  id2 : [new Vec3D(9.762054,10.272263,-0.20552035),new Vec3D(10.4812975,10.862781,-1.1926782),new Vec3D(10.57569,11.581298,-1.2659961),new Vec3D(10.106156,12.397262,-2.1370177),new Vec3D(9.229304,13.182889,-3.4981909),new Vec3D(7.685834,14.139094,-3.9044409),new Vec3D(5.954943,14.610641,-4.143965)],
+  id3 : [new Vec3D(3.8254225,13.246559,-0.44604826),new Vec3D(4.3847737,12.589251,0.11019552),new Vec3D(5.1091003,11.871958,0.54137456),new Vec3D(5.96891,11.140128,0.7102556),new Vec3D(6.879659,10.424713,0.44765747),new Vec3D(7.6197877,9.89772,-0.23683226),new Vec3D(7.998412,9.664082,-1.0178249)]
 }
 });
 
@@ -1135,11 +591,18 @@ setHitBoxes(CHARIDS.MARTH_ID, {
   upair : new createHitboxObject(new createHitbox(offsets[0].upair.id0,3.906,13,90,70,40,0,1,0,1,1),new createHitbox(offsets[0].upair.id1,3.906,10,80,70,30,0,1,0,1,1),new createHitbox(offsets[0].upair.id2,3.906,9,80,70,20,0,1,0,1,1),new createHitbox(offsets[0].upair.id3,3.906,9,80,70,18,0,1,0,1,1)),
   upb1 : new createHitboxObject(new createHitbox(offsets[0].upb1.id0,3.906,13,361,70,80,0,1,2,1,1),new createHitbox(offsets[0].upb1.id1,3.906,10,74,70,60,0,1,2,1,1),new createHitbox(offsets[0].upb1.id2,3.906,10,74,70,60,0,1,2,1,1)),
   upb2 : new createHitboxObject(new createHitbox(offsets[0].upb2.id0,3.906,7,361,90,20,0,1,0,1,1),new createHitbox(offsets[0].upb2.id1,3.906,7,74,90,20,0,1,0,1,1),new createHitbox(offsets[0].upb2.id2,3.125,6,74,90,20,0,0,0,1,1)),
-  dtilt : new createHitboxObject(new createHitbox(offsets[0].dtilt.id0,3.906,9,30,40,30,0,1,1,1,1),new createHitbox(offsets[0].dtilt.id1,2.734,8,30,40,25,0,1,1,1,1),new createHitbox(offsets[0].dtilt.id2,3.047,8,30,40,20,0,1,1,1,1),new createHitbox(offsets[0].dtilt.id3,3.906,10,30,40,50,0,1,1,1,1)),
+  dtilt : new createHitboxObject(new createHitbox(offsets[0].dtilt.id0,3.906,9,30,40,40,0,1,1,1,1),new createHitbox(offsets[0].dtilt.id1,2.734,8,30,40,25,0,1,1,1,1),new createHitbox(offsets[0].dtilt.id2,3.047,8,30,40,20,0,1,1,1,1),new createHitbox(offsets[0].dtilt.id3,3.906,10,30,40,50,0,1,1,1,1)),
   uptilt1 : new createHitboxObject(new createHitbox(offsets[0].uptilt1.id0,3.906,9,110,120,40,0,1,1,1,1),new createHitbox(offsets[0].uptilt1.id1,3.125,9,361,118,40,0,1,1,1,1),new createHitbox(offsets[0].uptilt1.id2,3.047,8,361,116,40,0,1,1,1,1),new createHitbox(offsets[0].uptilt1.id3,3.906,12,110,100,50,0,1,1,1,1)),
   uptilt2 : new createHitboxObject(new createHitbox(offsets[0].uptilt2.id0,3.906,10,85,120,40,0,1,1,1,1),new createHitbox(offsets[0].uptilt2.id1,2.734,9,361,118,30,0,1,1,1,1),new createHitbox(offsets[0].uptilt2.id2,2.265,9,361,116,30,0,1,1,1,1),new createHitbox(offsets[0].uptilt2.id3,3.906,13,85,100,50,0,1,1,1,1)),
   ftilt : new createHitboxObject(new createHitbox(offsets[0].ftilt.id0,3.906,9,361,70,30,0,1,1,1,1),new createHitbox(offsets[0].ftilt.id1,2.734,9,361,70,30,0,1,1,1,1),new createHitbox(offsets[0].ftilt.id2,3.047,9,361,70,30,0,1,1,1,1),new createHitbox(offsets[0].ftilt.id3,3.906,13,361,70,60,0,1,1,1,1)),
   dashattack : new createHitboxObject(new createHitbox(offsets[0].dashattack.id0,3.906,11,110,55,70,0,1,1,1,1),new createHitbox(offsets[0].dashattack.id1,3.125,9,361,60,35,0,0,1,1,1),new createHitbox(offsets[0].dashattack.id2,2.344,9,361,60,35,0,0,1,1,1),new createHitbox(offsets[0].dashattack.id3,3.906,12,110,55,70,0,1,1,1,1)),
+  // id0 carried the FOURTH hitbox's damage and knockback (6/100/30) and a size
+  // that appears nowhere in the group. Attack11 and Attack12 frame 4 are
+  // byte-identical on the disc -- so meleelight was right that jab1 and jab2
+  // share values -- and both read
+  //     id0 3.9062 / 4 / kg 50 / bk 20      id1 3.125  / 4 / 50 / 20
+  //     id2 2.3438 / 4 / kg 50 / bk 20      id3 3.9062 / 6 / 60 / 30
+  // The other three already matched exactly.
   jab1 : new createHitboxObject(new createHitbox(offsets[0].jab1.id0,3.906,4,361,50,20,0,1,1,1,1),new createHitbox(offsets[0].jab1.id1,3.125,4,361,50,20,0,1,1,1,1),new createHitbox(offsets[0].jab1.id2,2.344,4,361,50,20,0,1,1,1,1),new createHitbox(offsets[0].jab1.id3,3.906,6,361,60,30,0,1,1,1,1)),
   jab2 : new createHitboxObject(new createHitbox(offsets[0].jab2.id0,3.906,4,361,50,20,0,1,1,1,1),new createHitbox(offsets[0].jab2.id1,3.125,4,361,50,20,0,1,1,1,1),new createHitbox(offsets[0].jab2.id2,2.344,4,361,50,20,0,1,1,1,1),new createHitbox(offsets[0].jab2.id3,3.906,6,361,60,30,0,1,1,1,1)),
   dbground : new createHitboxObject(new createHitbox(offsets[0].dbground.id0,3.906,4,85,25,55,0,1,0,1,1),new createHitbox(offsets[0].dbground.id1,3.125,4,96,25,55,0,1,0,1,1),new createHitbox(offsets[0].dbground.id2,3.125,4,80,25,55,0,1,0,1,1),new createHitbox(offsets[0].dbground.id3,2.344,4,76,25,55,0,1,0,1,1)),
@@ -1173,6 +636,10 @@ setHitBoxes(CHARIDS.MARTH_ID, {
   dsmash1 : new createHitboxObject(new createHitbox(offsets[0].dsmash1.id0,4.297,11,75,72,70,0,1,1,1,1),new createHitbox(offsets[0].dsmash1.id1,3.125,11,361,100,20,0,1,1,1,1),new createHitbox(offsets[0].dsmash1.id2,3.515,11,361,100,16,0,1,1,1,1),new createHitbox(offsets[0].dsmash1.id3,3.906,16,70,100,70,0,1,1,1,1)),
   dsmash2 : new createHitboxObject(new createHitbox(offsets[0].dsmash2.id0,3.906,11,75,72,70,0,1,1,1,1),new createHitbox(offsets[0].dsmash2.id1,3.125,11,361,100,30,0,1,1,1,1),new createHitbox(offsets[0].dsmash2.id2,3.515,11,361,100,15,0,1,1,1,1),new createHitbox(offsets[0].dsmash2.id3,3.906,16,75,100,70,0,1,1,1,1)),
   grab : new createHitboxObject(new createHitbox(offsets[0].grab.id0,3.906,0,361,100,0,0,2,3,1,1),new createHitbox(offsets[0].grab.id1,3.906,0,361,100,0,0,2,3,1,1),new createHitbox(offsets[0].grab.id2,3.906,0,361,100,0,0,2,3,1,1)),
+  // ftCo_MS_CatchDash -- the DASH grab. 40 frames against Catch's 30;
+  // hitbox frames and sizes read off the subaction script by
+  // tools/gen_catchdash.py, which self-checks against the line above.
+  grabDash : new createHitboxObject(new createHitbox(offsets[0].grabDash.id0,3.90625,0,361,100,0,0,2,3,1,1),new createHitbox(offsets[0].grabDash.id1,3.90625,0,361,100,0,0,2,3,1,1),new createHitbox(offsets[0].grabDash.id2,3.90625,0,361,100,0,0,2,3,1,1)),
   downattack1 : new createHitboxObject(new createHitbox(offsets[0].downattack1.id0,5.468,6,361,50,80,0,1,1,1,1),new createHitbox(offsets[0].downattack1.id1,3.906,6,361,50,80,0,1,1,1,1),new createHitbox(offsets[0].downattack1.id2,3.906,6,361,50,80,0,1,1,1,1),new createHitbox(offsets[0].downattack1.id3,4.687,6,361,50,80,0,1,1,1,1)),
   downattack2 : new createHitboxObject(new createHitbox(offsets[0].downattack2.id0,5.468,6,361,50,80,0,1,1,1,1),new createHitbox(offsets[0].downattack2.id1,3.906,6,361,50,80,0,1,1,1,1),new createHitbox(offsets[0].downattack2.id2,3.906,6,361,50,80,0,1,1,1,1),new createHitbox(offsets[0].downattack2.id3,4.687,6,361,50,80,0,1,1,1,1)),
   ledgegetupquick : new createHitboxObject(new createHitbox(offsets[0].ledgegetupquick.id0,3.125,8,361,100,0,90,0,1,1,1),new createHitbox(offsets[0].ledgegetupquick.id1,3.125,8,361,100,0,90,0,1,1,1),new createHitbox(offsets[0].ledgegetupquick.id2,3.125,6,361,100,0,90,0,1,1,1)),
@@ -1182,20 +649,40 @@ setHitBoxes(CHARIDS.MARTH_ID, {
   throwdown : new createHitboxObject(new createHitbox(new Vec2D(3.57509,0),0,5,135,50,65,0,0,0,1,1)),
   throwback : new createHitboxObject(new createHitbox(new Vec2D(-1.29306,0),0,4,117,60,70,0,0,0,1,1)),
   throwforward : new createHitboxObject(new createHitbox(new Vec2D(7.69851,0),0,4,50,45,70,0,0,0,1,1)),
-  thrown : new createHitboxObject(new createHitbox(offsets[0].thrown.id0,3.906,4,361,50,20,0,1,0,1,1)),
+  // The tumble-body hitbox: a character in DamageFly* damages anyone they are
+  // launched into. In Melee this is a create_hitbox at frame 0 of every
+  // DamageFly subaction (DamageFlyN/Hi/Lw/Top/Roll), and it is identical in all
+  // five of them and across all five characters:
+  //     size 4.6875, dmg 6, angle 361, kg 100, bk 30
+  // The previous values (3.906/4/361/50/20) were likewise uniform, so this is
+  // one shared estimate being corrected, not five separate ones.
+  thrown : new createHitboxObject(new createHitbox(offsets[0].thrown.id0,4.687,6,361,100,30,0,1,0,1,1)),
+  // The DAMAGE is not a mismatch to fix. The script says 28, but Shield
+  // Breaker overwrites it every frame -- ftmarsspecialn.c:260 sets
+  //     damage = x4 + cur_frame / 30 * x8
+  // and Marth's MarsAttributes+0x04 = 7, +0x08 = 5 (both stored as ints), so 7
+  // IS the uncharged value and 28 is never used as written. Left at 7 until
+  // the charge term is implemented.
+  //
+  // The SIZE was: id2 read 3.125 where SpecialNEnd frame 5 holds 3.0469. The
+  // other three sizes and every angle, growth and base already matched.
   neutralspecialground : new createHitboxObject(new createHitbox(offsets[0].neutralspecialground.id0,4.297,7,361,100,30,0,1,1,1,1),
   new createHitbox(offsets[0].neutralspecialground.id1,2.734,7,361,100,30,0,1,1,1,1),
-  new createHitbox(offsets[0].neutralspecialground.id2,3.125,7,361,100,34,0,1,1,1,1),
+  new createHitbox(offsets[0].neutralspecialground.id2,3.047,7,361,100,34,0,1,1,1,1),
   new createHitbox(offsets[0].neutralspecialground.id3,3.906,7,361,100,40,0,1,1,1,1)),
-  neutralspecialair : new createHitboxObject(new createHitbox(offsets[0].neutralspecialair.id0,4.297,7,361,100,30,0,1,0,1,1),new createHitbox(offsets[0].neutralspecialair.id1,2.734,7,361,100,30,0,1,0,1,1),new createHitbox(offsets[0].neutralspecialair.id2,3.125,7,361,100,34,0,1,0,1,1),new createHitbox(offsets[0].neutralspecialair.id3,3.906,7,361,100,40,0,1,0,1,1)),
-  downspecialground : new createHitboxObject(new createHitbox(offsets[0].downspecialground.id0,10,0,361,0,0,0,6,6,0,0)),
-  downspecialair : new createHitboxObject(new createHitbox(offsets[0].downspecialair.id0,10,0,361,0,0,0,6,6,0,0)),
+  neutralspecialair : new createHitboxObject(new createHitbox(offsets[0].neutralspecialair.id0,4.297,7,361,100,30,0,1,0,1,1),new createHitbox(offsets[0].neutralspecialair.id1,2.734,7,361,100,30,0,1,0,1,1),new createHitbox(offsets[0].neutralspecialair.id2,3.047,7,361,100,34,0,1,0,1,1),new createHitbox(offsets[0].neutralspecialair.id3,3.906,7,361,100,40,0,1,0,1,1)),
+  // Counter's detection volume is not a script hitbox. It is the ShieldDesc at
+  // MarsAttributes+0x64, installed by ftMs_SpecialLw_Anim (ftmarsspeciallw.c:79)
+  // via ftColl_8007B1B8 (ftcoll.c:3175), which copies bone, radius and offset
+  // and nothing else. Disc values: bone 3 (FtPart_YRotN, the character root, so
+  // this offset is fixed rather than animated), offset (0, -0.5, 0), radius 8.5.
+  // Size was 10; the offset stays as meleelight's (0, 8) because meleelight
+  // measures from a different origin than the YRotN joint.
+  downspecialground : new createHitboxObject(new createHitbox(offsets[0].downspecialground.id0,8.5,0,361,0,0,0,6,6,0,0)),
+  downspecialair : new createHitboxObject(new createHitbox(offsets[0].downspecialair.id0,8.5,0,361,0,0,0,6,6,0,0)),
   downspecialground2 : new createHitboxObject(new createHitbox(offsets[0].downspecialground2.id0,3.906,7,361,35,90,0,1,0,1,1),new createHitbox(offsets[0].downspecialground2.id1,4.297,7,361,35,90,0,1,0,1,1),new createHitbox(offsets[0].downspecialground2.id2,2.734,7,361,35,90,0,1,0,1,1),new createHitbox(offsets[0].downspecialground2.id3,3.047,7,361,35,90,0,1,0,1,1)),
   downspecialair2 : new createHitboxObject(new createHitbox(offsets[0].downspecialair2.id0,3.906,7,361,35,90,0,1,0,1,1),new createHitbox(offsets[0].downspecialair2.id1,4.297,7,361,35,90,0,1,0,1,1),new createHitbox(offsets[0].downspecialair2.id2,2.734,7,361,35,90,0,1,0,1,1),new createHitbox(offsets[0].downspecialair2.id3,3.047,7,361,35,90,0,1,0,1,1))
 });
 
-for (var l=0;l<20;l++){
-  offsets[CHARIDS.MARTH_ID].thrown.id0.push(new Vec2D(0,12));
-}
 
 setChars(CHARIDS.MARTH_ID,new charObject(CHARIDS.MARTH_ID));

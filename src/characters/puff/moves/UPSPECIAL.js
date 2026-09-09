@@ -1,5 +1,5 @@
 import {player} from "../../../main/main";
-import {turnOffHitboxes, reduceByTraction} from "../../../physics/actionStateShortcuts";
+import {turnOffHitboxes, reduceByTraction, applyGravity, applyFrictionAir} from "../../../physics/actionStateShortcuts";
 import puff from "./index";
 import {Vec2D} from "../../../main/util/Vec2D";
 import {drawVfx} from "../../../main/vfx/drawVfx";
@@ -20,20 +20,21 @@ export default {
     //23
     //71
     //122
-    if (player[p].phys.grounded) {
-      if (player[p].phys.cVel.x > 0) {
-        player[p].phys.cVel.x -= 0.1;
-      }
-      if (player[p].phys.cVel.x < 0) {
-        player[p].phys.cVel.x += 0.1;
-      }
-    }
-    else {
-      player[p].phys.fastfalled = false;
-      if (player[p].phys.cVel.y < -player[p].charAttributes.terminalV) {
-        player[p].phys.cVel.y = -player[p].charAttributes.terminalV;
-      }
-    }
+    // Entering Sing touches NO velocity in Melee. ftPr_SpecialHi_Enter
+    // (ftpurinspecialhi.c:51) and ftPr_SpecialAirHi_Enter (:59) both do only
+    // ftPurin_SpecialHi_SetActionFromFacingDirection, ftAnim_8006EBA4 and
+    // ftPurin_SpecialHi_SetVars, and SetVars (:23) sets cmd_vars, a callback
+    // and a stadium flag -- nothing else. All movement is in the Phys
+    // callbacks, which main() below now mirrors.
+    //
+    // REMOVED here: a grounded `cVel.x -= 0.1` decay with no counterpart
+    // anywhere in the game, and an airborne terminal-velocity clamp that
+    // ftCommon_Fall already applies every frame in main().
+    //
+    // The grounded decay was also a write straight to cVel.x while GROUNDED,
+    // which skips the floor projection -- wrong on any slope even if the 0.1
+    // had been real.
+    player[p].phys.fastfalled = false;
     turnOffHitboxes(p);
     player[p].hitboxes.id[0] = player[p].charHitboxes.upb.id0;
     puff.UPSPECIAL.main(p, input);
@@ -62,26 +63,20 @@ export default {
           face: p
         });
       }
+      // ftPr_SpecialHi_Phys / ftPr_SpecialAirHi_Phys (ftpurinspecialhi.c:101,
+      // :106) are one call each:
+      //   grounded -> ft_80084F3C: ground friction on gr_vel, then
+      //               ApplyGroundMovement (ft_084E.c:42)
+      //   airborne -> ft_80084EEC: ftCommon_Fall + ApplyFrictionAir (:33)
+      //
+      // Note the airborne side is plain Fall, NOT CheckFallFast/FallFast --
+      // you cannot fastfall out of Sing.
       if (player[p].phys.grounded) {
         reduceByTraction(p);
       }
       else {
-        if (player[p].phys.cVel.x > 0) {
-          player[p].phys.cVel.x -= player[p].charAttributes.airFriction;
-          if (player[p].phys.cVel.x < 0) {
-            player[p].phys.cVel.x = 0;
-          }
-        }
-        else if (player[p].phys.cVel.x < 0) {
-          player[p].phys.cVel.x += player[p].charAttributes.airFriction;
-          if (player[p].phys.cVel.x > 0) {
-            player[p].phys.cVel.x = 0;
-          }
-        }
-        player[p].phys.cVel.y -= player[p].charAttributes.gravity;
-        if (player[p].phys.cVel.y < -player[p].charAttributes.terminalV) {
-          player[p].phys.cVel.y = -player[p].charAttributes.terminalV;
-        }
+        applyGravity(p);
+        applyFrictionAir(p, player[p].charAttributes.airFriction);
       }
       if (player[p].timer === 18) {
         sounds.sing1.play();

@@ -1,4 +1,5 @@
 import marth from "./index";
+import {SPECIAL_STICK_Y_THRESHOLD} from "physics/meleeCommon";
 import {player} from "../../../main/main";
 import {turnOffHitboxes} from "../../../physics/actionStateShortcuts";
 import {sounds} from "../../../main/sfx";
@@ -7,6 +8,7 @@ import {drawVfx} from "../../../main/vfx/drawVfx";
 import {Vec2D} from "../../../main/util/Vec2D";
 import WAIT from "../../shared/moves/WAIT";
 import FALL from "../../shared/moves/FALL";
+import {setGroundVelocity} from "physics/groundMovement";
 export default {
   name: "SIDESPECIALGROUND3UP",
   canPassThrough: false,
@@ -33,7 +35,7 @@ export default {
     player[p].timer++;
     dancingBladeCombo(p, 18, 38, input);
     if (!marth.SIDESPECIALGROUND3UP.interrupt(p, input)) {
-      player[p].phys.cVel.x = marth.SIDESPECIALGROUND3UP.setVelocities[player[p].timer - 1] * player[p].phys.face;
+      setGroundVelocity(p, marth.SIDESPECIALGROUND3UP.setVelocities[player[p].timer - 1] * player[p].phys.face);
       if (player[p].timer > 3 && player[p].timer < 21) {
         drawVfx({
           name: "swing",
@@ -70,10 +72,10 @@ export default {
       return true;
     }
     else if (player[p].phys.dancingBlade) {
-      if (input[p][0].lsY > 0.56) {
+      if (input[p][0].lsY > SPECIAL_STICK_Y_THRESHOLD) {
         marth.SIDESPECIALGROUND4UP.init(p, input);
       }
-      else if (input[p][0].lsY < -0.56) {
+      else if (input[p][0].lsY < -SPECIAL_STICK_Y_THRESHOLD) {
         marth.SIDESPECIALGROUND4DOWN.init(p, input);
       }
       else {

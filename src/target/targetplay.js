@@ -10,7 +10,8 @@ import {
   , setPlaying
 
   , setEndTargetGame
-  , setStage
+  // `setStage` dropped: main/main exports setStageSelect, not setStage. The
+  // name was unused here and bound undefined.
   , holiday
 } from "main/main";
 import {renderPlayer} from "main/render";

@@ -2,13 +2,13 @@ import WAIT from "characters/shared/moves/WAIT";
 import FALL from "characters/shared/moves/FALL";
 import {player} from "main/main";
 import {sounds} from "main/sfx";
-import {turnOffHitboxes, reduceByTraction} from "physics/actionStateShortcuts";
+import {turnOffHitboxes, reduceByTraction, applyRootMotionAir} from "physics/actionStateShortcuts";
 
 import {drawVfx} from "main/vfx/drawVfx";
 import {Vec2D} from "../../../main/util/Vec2D";
+import {setGroundVelocity} from "physics/groundMovement";
 export default {
   name : "DOWNSPECIALGROUNDENDAIR",
-  setVelocities : [0,0.51374,0.59547,0.60863,0.55322,0.42924,0.32122],
   canPassThrough : false,
   canGrabLedge : [false,false],
   wallJumpAble : false,
@@ -26,21 +26,19 @@ export default {
   main : function(p,input){
     player[p].timer++;
     if (!this.interrupt(p,input)){
-      if (player[p].timer > 1) {
-        if (player.timer < 7) {
-          player[p].phys.cVel.x = 1.0346 * player[p].phys.face;
-        }
-        if (player.timer === 7) {
-          player[p].phys.cVel.x = 1.24691 * player[p].phys.face;
-        }
-        if (player[p].timer > 7) {
-          player[p].phys.cVel.y = Math.max(player[p].phys.cVel.y-player[p].charAttributes.gravity, -player[p].charAttributes.terminalV);
-          player[p].phys.cVel.x = Math.sign(player[p].phys.cVel.x) * Math.max(Math.abs(player[p].phys.cVel.x)-player[p].charAttributes.airFriction, 0);
-        }
-        else {
-          player[p].phys.cVel.y = this.setVelocities[player[p].timer-1];
-        }
-      }
+      // BOTH axes from the animation, for the whole state.
+      // ftCa_SpecialLwEndAir_Phys (ftcaptainspeciallw.c:256) takes the air
+      // branch to ft_80085134 (ft_084E.c:119), which assigns self_vel.x and
+      // self_vel.y outright -- so there is no gravity and no air friction
+      // here at all.
+      //
+      // The disc carries +30.95 units of forward travel over 30 frames. What
+      // was here delivered almost none of it: the two setGroundVelocity calls
+      // tested `player.timer`, missing the `[p]`, so `undefined < 7` and
+      // `undefined === 7` were both false and NEITHER ever fired. Falcon then
+      // fell under gravity from frame 8 with whatever velocity he happened to
+      // carry in.
+      applyRootMotionAir(p, "DOWNSPECIALGROUNDENDAIR");
     }
   },
   interrupt : function(p,input){

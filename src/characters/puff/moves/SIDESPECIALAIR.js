@@ -1,5 +1,7 @@
 import {player} from "../../../main/main";
-import {turnOffHitboxes, airDrift, fastfall} from "../../../physics/actionStateShortcuts";
+import {turnOffHitboxes, airDrift, fastfall, rolloutAngle} from "../../../physics/actionStateShortcuts";
+import {sinf, cosf} from "physics/trig";
+import {mul} from "physics/f32";
 import puff from "./index";
 import {sounds} from "../../../main/sfx";
 import WAIT from "../../shared/moves/WAIT";
@@ -10,7 +12,9 @@ export default {
   canEdgeCancel: false,
   canGrabLedge: [false, false],
   groundVelocities: [1.88, 1.50792, 1.31208, 1.14561, 0.73439, 0.34986, 0.34461, 0.33943, 0.33430, 0.32924, 0.32424, 0.31930, 0.31443, 0.30961, 0.30486, 0.30017, 0.29554, 0.29097, 0.28647, 0.28202, 0.27764, 0.27332, 0.26906, 0.26487, 0.26074, 0.25666, 0.25265, 0.23230, 0.19657, 0.16230, 0.12950, 0.09816, 0.06830, 0.03990],
-  airVelocities: [2.024, 1.86208, 1.71311, 1.57606, 1.44998, 1.33398, 1.22726, 1.12908, 1.03876, 0.95565, 0.87920, 0.80887, 0.74416, 0.68462, 0.62985, 0.57947, 0.53311, 0.49046, 0.45122, 0.41513, 0.38192, 0.35136, 0.32325, 0.29739, 0.27360, 0.25171, 0.23158, 0.21305],
+  // airVelocities REMOVED: it was 2.2 * 0.92^n (xF0, xF4) flattened to
+  // five decimals and cut off at 28 entries. The recurrence is run
+  // directly in main() now -- see ftpurinspecials.c:97-125.
   wallJumpAble: false,
   headBonk: false,
   canBeGrabbed: true,
@@ -43,9 +47,9 @@ export default {
       else {
         if (player[p].timer === 12) {
           player[p].phys.fastfalled = false;
-          player[p].phys.upbAngleMultiplier = input[p][0].lsY * Math.PI * (20 / 180);
-          //decide angle
-          //max 20 degrees
+          // calcAngleRadians, ftpurinspecials.c:78-95 -- a floored and capped
+          // ramp, not a straight lsY * 20 degrees.
+          player[p].phys.upbAngleMultiplier = rolloutAngle(p, input[p][0].lsY);
           player[p].phys.cVel.y = 0;
         }
         if (player[p].timer < 12) {
@@ -67,8 +71,24 @@ export default {
           }
         }
         else if (player[p].timer > 11 && player[p].timer < 40) {
-          player[p].phys.cVel.x = puff.SIDESPECIALAIR.airVelocities[player[p].timer - 12] * player[p].phys.face * Math.cos(player[p].phys.upbAngleMultiplier);
-          player[p].phys.cVel.y = puff.SIDESPECIALAIR.airVelocities[player[p].timer - 12] * Math.sin(player[p].phys.upbAngleMultiplier);
+          // ftPr_SpecialAirS_Phys (ftpurinspecials.c:97-125). Melee seeds the
+          // velocity once from xF0 and then multiplies BOTH components by xF4
+          // every frame, including the frame it was seeded on -- which is why
+          // the first value out is 2.2*0.92 and not 2.2.
+          //
+          // The `airVelocities` table this replaces was exactly that geometric
+          // sequence flattened to five decimals and truncated at 28 entries.
+          // Running the recurrence instead is both exact in float32 and does
+          // not run off the end of an array.
+          const attr = player[p].charAttributes;
+          if (player[p].timer === 12) {
+            const ang = player[p].phys.upbAngleMultiplier;
+            // Parenthesised as the original: the facing multiply is inside.
+            player[p].phys.cVel.x = mul(attr.rolloutSpeed, mul(player[p].phys.face, cosf(ang)));
+            player[p].phys.cVel.y = mul(attr.rolloutSpeed, sinf(ang));
+          }
+          player[p].phys.cVel.x = mul(player[p].phys.cVel.x, attr.rolloutDecay);
+          player[p].phys.cVel.y = mul(player[p].phys.cVel.y, attr.rolloutDecay);
         }
         else {
           airDrift(p, input);

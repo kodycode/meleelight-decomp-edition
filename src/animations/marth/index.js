@@ -71,6 +71,7 @@ var RUNBRAKE = require("./RUNBRAKE");
 var SQUAT = require("./SQUAT");
 var UPSMASH = require("./UPSMASH");
 var CATCHWAIT = require("./CATCHWAIT");
+var CATCHDASH = require("./CATCHDASH");
 var DOWNSPECIALGROUND = require("./DOWNSPECIALGROUND");
 var JAB1 = require("./JAB1");
 var RUNTURN = require("./RUNTURN");
@@ -228,6 +229,7 @@ module.exports = {
   SQUAT: SQUAT,
   UPSMASH: UPSMASH,
   CATCHWAIT: CATCHWAIT,
+  CATCHDASH: CATCHDASH,
   DOWNSPECIALGROUND: DOWNSPECIALGROUND,
   JAB1: JAB1,
   RUNTURN: RUNTURN,

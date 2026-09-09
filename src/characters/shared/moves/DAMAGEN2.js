@@ -50,7 +50,7 @@ export default {
           }
         }
         else {
-          reduceByTraction(p,false);
+          reduceByTraction(p,true);
         }
       }
     }

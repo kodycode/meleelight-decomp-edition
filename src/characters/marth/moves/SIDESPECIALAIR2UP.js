@@ -1,4 +1,5 @@
 import marth from "./index";
+import {SPECIAL_STICK_Y_THRESHOLD} from "physics/meleeCommon";
 import {player} from "../../../main/main";
 import {turnOffHitboxes} from "../../../physics/actionStateShortcuts";
 import {sounds} from "../../../main/sfx";
@@ -71,10 +72,10 @@ export default {
       return true;
     }
     else if (player[p].phys.dancingBlade) {
-      if (input[p][0].lsY > 0.56) {
+      if (input[p][0].lsY > SPECIAL_STICK_Y_THRESHOLD) {
         marth.SIDESPECIALAIR3UP.init(p, input);
       }
-      else if (input[p][0].lsY < -0.56) {
+      else if (input[p][0].lsY < -SPECIAL_STICK_Y_THRESHOLD) {
         marth.SIDESPECIALAIR3DOWN.init(p, input);
       }
       else {

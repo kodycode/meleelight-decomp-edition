@@ -2,13 +2,21 @@ import {playerType, player, characterSelections, screenShake, gameMode, percentS
 
 import {gameSettings} from "settings";
 import {sounds} from "main/sfx";
-import {turnOffHitboxes, actionStates} from "physics/actionStateShortcuts";
+import {turnOffHitboxes, actionStates, calcShieldstun, calcShieldPushback,
+        shieldAnalogToLightshield, calcAttackerShieldPushback, getEnvDmg} from "physics/actionStateShortcuts";
+import {setGroundVelocity} from "physics/groundMovement";
+import {calcHitstun, calcKnockback, applyKnockbackModifiers, calcHitlag,
+        calcLaunchAngle, knockbackToVelocity, applyDI} from "physics/knockback";
 import {drawVfx} from "main/vfx/drawVfx";
 import {Vec2D} from "../main/util/Vec2D";
 import {Segment2D} from "../main/util/Segment2D";
 import {euclideanDist} from "../main/linAlg";
 import {getSameAndOther} from "./environmentalCollision";
 import {sweepCircleVsSweepCircle, sweepCircleVsAABB} from "./interpolatedCollision";
+import {hitsHurtCapsules} from "physics/hurtboxCollision";
+import {capsuleOverlap} from "physics/capsule";
+import {moveIdFor, staleDamage, pushStaleMove} from "physics/staling";
+import {applySmashCharge} from "physics/smashCharge";
 /* eslint-disable */
 
 export let hitQueue = [];
@@ -19,7 +27,18 @@ export let phantomQueue = [];
 export function setPhantonQueue(val){
   phantomQueue = val;
 }
-const angleConversion = Math.PI / 180;
+// angleConversion REMOVED with getLaunchAngle, its only user. Degrees ->
+// radians in live code goes through mtxDegToRad (trig.js), which uses the
+// game's float32 literal rather than the double pi/180 -- the two land on
+// different float32 values for 33 of the integer trajectories.
+
+// ftCommon_CalcHitlag tests `(unsigned)msid - ftCo_MS_Squat <= 1`
+// (ftcommon.c:643) against the RECEIVING fighter's state -- Squat and
+// SquatWait, not SquatRv. The `crouch` flag carries that; see SQUATRV.js.
+export function isCrouching (n) {
+  const st = actionStates[characterSelections[n]][player[n].actionState];
+  return !!(st && st.crouch);
+}
 
 export function hitDetect (p,input){
     var attackerClank = false;
@@ -72,23 +91,43 @@ export function hitDetect (p,input){
                                                     actionStates[characterSelections[p]][player[p].actionState].onClank(p,input);
                                                 }
                                             } else {
+                                                // Clank hitlag. ftColl_8007699C (ftcoll.c:417)
+                                                // sets `fp1->dmg.int_value = int_dmg` from the
+                                                // OPPOSING hitbox's damage, and Fighter_procUpdate
+                                                // (fighter.c:2920) picks that up as `bool1` -- the
+                                                // clank branch converges on the SAME capped
+                                                // ftCommon_CalcHitlag every other hit path uses
+                                                // (fighter.c:2966).
+                                                //
+                                                // `int_dmg` is getEnvDmg: truncate to int, but a
+                                                // nonzero damage that truncates to 0 becomes 1.
+                                                //
+                                                // The near-miss worth recording: ftcoll.c:350 also
+                                                // writes `int_dmg * x3D0 + x3D4` (slope 0.3, not
+                                                // 1/3) into x191C, which looks like a rival hitlag
+                                                // formula and is not one -- ftCo_80099D9C
+                                                // (ftCo_Rebound.c:23) divides the clank animation
+                                                // length by it, so it is the REBOUND STATE's
+                                                // duration in frames, the same trick shieldstun
+                                                // uses. Two plausible formulas, different
+                                                // quantities.
                                                 if (diff >= 9) {
                                                     // victim clank
                                                     // attacker cut through
-                                                    player[i].hit.hitlag = Math.floor(player[p].hitboxes.id[j].dmg * (1 / 3) + 3);
+                                                    player[i].hit.hitlag = calcHitlag(getEnvDmg(player[p].hitboxes.id[j].dmg));
                                                     turnOffHitboxes(i);
                                                     actionStates[characterSelections[i]].CATCHCUT.init(i,input);
                                                 } else if (diff <= -9) {
                                                     // attacker clank
                                                     // victim cut through
-                                                    player[p].hit.hitlag = Math.floor(player[i].hitboxes.id[k].dmg * (1 / 3) + 3);
+                                                    player[p].hit.hitlag = calcHitlag(getEnvDmg(player[i].hitboxes.id[k].dmg));
                                                     attackerClank = true;
                                                     turnOffHitboxes(p);
                                                     actionStates[characterSelections[p]].CATCHCUT.init(p,input);
                                                 } else {
                                                     // both clank
-                                                    player[i].hit.hitlag = Math.floor(player[p].hitboxes.id[j].dmg * (1 / 3) + 3);
-                                                    player[p].hit.hitlag = Math.floor(player[i].hitboxes.id[k].dmg * (1 / 3) + 3);
+                                                    player[i].hit.hitlag = calcHitlag(getEnvDmg(player[p].hitboxes.id[j].dmg));
+                                                    player[p].hit.hitlag = calcHitlag(getEnvDmg(player[i].hitboxes.id[k].dmg));
                                                     attackerClank = true;
                                                     turnOffHitboxes(i);
                                                     actionStates[characterSelections[i]].CATCHCUT.init(i,input);
@@ -178,9 +217,32 @@ export function hitHitCollision (i,p,j,k){
 
     var hitPoint = new Vec2D((hbpos.x + hbpos2.x) / 2, (hbpos.y + hbpos2.y) / 2);
 
-    return [    Math.pow(hbpos2.x - hbpos.x, 2) + Math.pow(hbpos.y - hbpos2.y, 2)
-             <= Math.pow(player[p].hitboxes.id[j].size + player[i].hitboxes.id[k].size, 2)
+    // ftcoll.c:1778 -- hit-vs-hit (clank) goes through lbColl_80007AFC, the
+    // SAME 3D capsule test as hit-vs-hurt, not a separate 2D one. So the depth
+    // axis decides clanks too: two attacks whose hitboxes pass on either side
+    // of each other in Melee's X do not trade.
+    //
+    // This was a flat circle-circle test on (x, y) with the depth thrown away,
+    // which made every attack clank that merely lined up horizontally.
+    const zA = hitboxDepth(p, j, framePos1);
+    const zB = hitboxDepth(i, k, framePos2);
+    const a = { x: hbpos.x,  y: hbpos.y,  z: zA };
+    const b = { x: hbpos2.x, y: hbpos2.y, z: zB };
+    // Both are single-frame points here, so each capsule has zero length --
+    // spheres, which the same routine handles. Melee draws no distinction.
+    return [ capsuleOverlap(a, a, b, b,
+                            player[p].hitboxes.id[j].size,
+                            player[i].hitboxes.id[k].size)
            , hitPoint];
+}
+
+// The depth (Melee's X) of player `p`'s hitbox `j` at interpolation index
+// `frame`, mirrored by facing. Offsets that have not been baked in 3D are
+// Vec2D and sit at depth 0, which is what the old flat test assumed for
+// everything.
+function hitboxDepth (p, j, frame) {
+  const off = player[p].hitboxes.id[j].offset[frame];
+  return (off && off.z !== undefined) ? off.z * player[p].phys.face : 0;
 }
 
 export function interpolatedHitHitCollision(i,p,j,k) {
@@ -288,6 +350,27 @@ export function interpolatedHitHurtCollision (i,p,j,phantom){
   const h2 = new Vec2D (0.5*hb[1].x + 0.5*hb[2].x, 0.5*hb[1].y + 0.5*hb[2].y);
   const r = 0.5 * euclideanDist(hb[0], hb[3]);
 
+  // The swept hitbox is already a capsule -- h1 to h2 with radius r, which is
+  // exactly Melee's hit capsule from last frame's position to this one. What
+  // was missing was the other side: this tested it against a static box.
+  //
+  // The DEPTH of the sweep comes from the hitbox offsets, which are baked in
+  // 3D. The interpolated corners here are 2D, so the depth is taken from the
+  // offset directly rather than being interpolated with them.
+  const off = hitboxOffsetOf(p, j, false);
+  const offPrev = hitboxOffsetOf(p, j, true);
+  const zNow = (off && off.z !== undefined) ? off.z * player[p].phys.face : 0;
+  const zPrev = (offPrev && offPrev.z !== undefined)
+    ? offPrev.z * player[p].phys.facePrev : zNow;
+  const capsuleHit = hitsHurtCapsules(
+    i, {x: h1.x, y: h1.y, z: zPrev}, {x: h2.x, y: h2.y, z: zNow}, r, 0);
+  if (capsuleHit !== null) {
+    return capsuleHit;
+  }
+
+  // No hurtbox data for this state -- 19 states across the five characters have
+  // no animation on the disc at all, most of them death states. Fall back to
+  // the old box rather than making the fighter untouchable.
   const collision = sweepCircleVsAABB ( h1, r, h2, r, hurt.min, hurt.max );
 
   if (collision === null) {
@@ -296,6 +379,17 @@ export function interpolatedHitHurtCollision (i,p,j,phantom){
   else {
     return true;
   }
+}
+
+// The offset a hitbox is using this frame, or null if it has none. Mirrors the
+// indexing hitHurtCollision does.
+function hitboxOffsetOf (p, j, previous) {
+  const set = previous ? player[p].phys.prevFrameHitboxes : player[p].hitboxes;
+  if (set === undefined || set.id[j] === undefined) { return null; }
+  let f = set.frame;
+  if (f > 1) { f = 1; }
+  const o = set.id[j].offset[f];
+  return o === undefined ? null : o;
 }
 
 export function hitHurtCollision (i,p,j,previous,phantom){
@@ -324,6 +418,25 @@ export function hitHurtCollision (i,p,j,previous,phantom){
     } else {
         var hbpos = new Vec2D(player[p].phys.pos.x + (offset.x * player[p].phys.face), player[p].phys.pos.y + offset.y);
     }
+    // A hitbox with no sweep is a capsule of zero length -- a sphere -- which
+    // the same test handles. Melee makes no distinction between the two cases.
+    const useOffset = previous ? player[p].phys.prevFrameHitboxes.id[j].offset[
+                                   Math.min(player[p].phys.prevFrameHitboxes.frame, 1)]
+                               : offset;
+    const zHit = (useOffset && useOffset.z !== undefined)
+      ? useOffset.z * (previous ? player[p].phys.facePrev : player[p].phys.face)
+      : 0;
+    const pt = {x: hbpos.x, y: hbpos.y, z: zHit};
+    const capsuleHit = hitsHurtCapsules(
+      i, pt, pt, player[p].hitboxes.id[j].size,
+      phantom ? gameSettings.phantomThreshold : 0);
+    if (capsuleHit !== null) {
+      return capsuleHit;
+    }
+
+    // Fallback for states with no hurtbox data. NOTE the box below is 8 by 18
+    // for EVERY character -- it does not even use hurtboxOffset, let alone the
+    // animation. It is kept only so an unmapped state still collides somehow.
     var hurtCenter = new Vec2D((player[i].phys.hurtbox.min.x + player[i].phys.hurtbox.max.x) / 2, (player[i].phys.hurtbox
             .min.y + player[i].phys.hurtbox.max.y) / 2);
 
@@ -370,7 +483,7 @@ export function cssHits(input) {
 
     if (shieldHit) {
       sounds.blunthit.play();
-      player[v].hit.hitlag = Math.floor(damage * (1 / 3) + 3);
+      player[v].hit.hitlag = calcHitlag(damage, {crouching: isCrouching(v)});
       if (player[v].phys.powerShieldActive) {
         player[v].phys.powerShielded = true;
         player[v].hit.powershield = true;
@@ -390,7 +503,7 @@ export function cssHits(input) {
             0.3)) * 1.5) + 2;
     } else {
       player[a].rpsPoints++;
-      player[v].hit.hitlag = Math.floor(damage * (1 / 3) + 3);
+      player[v].hit.hitlag = calcHitlag(damage, {crouching: isCrouching(v)});
       player[v].hit.knockback = getKnockback(player[a].hitboxes.id[h], damage, damage, 0, player[v].charAttributes.weight,
             false, false);
       player[v].hit.hitPoint = new Vec2D(player[a].phys.pos.x + (player[a].hitboxes.id[h].offset[frame].x * player[a].phys.face), player[a].phys.pos.y + player[a].hitboxes.id[h].offset[frame].y);
@@ -426,7 +539,7 @@ export function executeShieldHit(input, v, a, h, damage) {
       return;
     }
   }
-  player[v].hit.hitlag = Math.floor(damage * (1 / 3) + 3);
+  player[v].hit.hitlag = calcHitlag(damage, {crouching: isCrouching(v)});
 
   let vPushMultiplier = 0.6;
   if (player[v].phys.powerShieldActive) {
@@ -454,20 +567,53 @@ export function executeShieldHit(input, v, a, h, damage) {
       pos: new Vec2D(player[a].phys.pos.x + (player[a].hitboxes.id[h].offset[player[a].hitboxes.frame].x * player[a].phys.face), player[a].phys.pos.y + player[a].hitboxes.id[h].offset[player[a].hitboxes.frame].y)
     });
   }
-  player[v].hit.shieldstun = ((Math.floor(damage) * ((0.65 * (1 - ((player[v].phys.shieldAnalog - 0.3) / 0.7))) + 0.3)) * 1.5) + 2;
-  let victimPush = ((Math.floor(damage) * ((0.195 * (1 - ((player[v].phys.shieldAnalog - 0.3) / 0.7))) + 0.09)) +
-          0.4) * vPushMultiplier;
-  if (victimPush > 2) {
-    victimPush = 2;
-  }
-  let attackerPush = (Math.floor(damage) * ((player[v].phys.shieldAnalog - 0.3) * 0.1)) + 0.02;
+  // ftCo_80092F2C (decomp: src/melee/ft/kinds/ftCommon/ftCo_Guard.c:661).
+  //
+  // Stun is computed first, and pushback is DERIVED FROM THE STUN FRAMES --
+  // not recomputed from damage. meleelight previously used an independent
+  // expression for pushback with different coefficients and an extra +0.4
+  // constant term, which does not reduce to the decomp's formula.
+  //
+  // The stun formula itself was already algebraically correct here; it is
+  // restated via calcShieldstun so the constants come from PlCo.dat and the
+  // arithmetic is exact float32.
+  const lightshield = shieldAnalogToLightshield(player[v].phys.shieldAnalog);
+  player[v].hit.shieldstun = calcShieldstun(damage, lightshield);
 
-  if (player[a].phys.pos.x < player[v].phys.pos.x) {
-    player[v].phys.cVel.x = victimPush
-    player[a].phys.cVel.x -= attackerPush
-  } else {
-    player[v].phys.cVel.x = -victimPush
-    player[a].phys.cVel.x += attackerPush
+  // NB: calcShieldPushback applies x2BC (0.6) internally based on the
+  // powershield flag. vPushMultiplier is meleelight's spelling of that exact
+  // constant (0.6 normally, 1 when powershielding), so it must NOT be applied
+  // again here -- doing so would square it.
+  const victimPush = calcShieldPushback(player[v].hit.shieldstun,
+                                        vPushMultiplier === 1);
+  // The decomp writes the defender's pushback to gr_vel -- the along-ground
+  // scalar (ftCo_Guard.c:698) -- not to a 2D vector. A shielding fighter is
+  // always grounded, so route it through setGroundVelocity and let the floor
+  // tangent projection produce cVel.
+  const shielderIsRight = player[a].phys.pos.x < player[v].phys.pos.x;
+  setGroundVelocity(v, shielderIsRight ? victimPush : -victimPush);
+
+  // The attacker's pushback is a DIFFERENT channel: x98_atk_shield_kb, seeded
+  // through the grounded scalar xF4 and projected onto the floor tangent
+  // (ftcoll.c:459 -> fighter.c:3009 -> ftCommon_8007E2A4). It decays at its own
+  // rate (x3E8 airborne, ground_friction * x3EC grounded), not with ordinary
+  // movement friction, so writing it to cVel.x -- as meleelight did -- put it
+  // on the wrong decay curve and let self-movement overwrite it.
+  //
+  // It is also gated on the ATTACKER BEING GROUNDED (ftcoll.c:457). An aerial
+  // that hits a shield pushes the shielder but not the attacker. meleelight
+  // applied it unconditionally.
+  if (player[a].phys.grounded) {
+    // The SHIELDER's lightshield amount, not the attacker's -- ftcoll.c:459
+    // reads fp1->lightshield_amount, where fp1 is the fighter being hit.
+    const push = calcAttackerShieldPushback(damage, lightshield);
+    // x192c is +1 when the shielder is to the RIGHT, and xF4 then takes the
+    // NEGATED magnitude -- i.e. the attacker is pushed away from the shielder.
+    const scalar = shielderIsRight ? -push : push;
+    player[a].phys.grShieldKBVel = scalar;
+    const n = player[a].phys.groundNormal;
+    player[a].phys.shieldKBVel.x = n.y * scalar;
+    player[a].phys.shieldKBVel.y = -n.x * scalar;
   }
 
   actionStates[characterSelections[v]].GUARD.init(v,input);
@@ -484,10 +630,20 @@ export function bluntHit(a,h){
 
 export function executeRegularHit (input, v, a, h, shieldHit, isThrow, drawBounce, phantom, stageDamage, hitbox) {
   let damage = hitbox.dmg;
+  // Staled damage, tracked alongside the raw value from here on. Melee stales
+  // the PERCENT you take but NOT the knockback (ft_80089228 is applied to the
+  // damage figure; ftColl_80079AB0 takes the unstaled one), so the two have to
+  // stay separate all the way to their respective consumers.
+  //
+  // Stage damage has no attacker and therefore no attack id, so it never
+  // stales -- moveIdFor returns FtMoveId_Default and staleDamage is identity.
+  let staledDamage = damage;
   player[v].phys.grabTech = false;
   if (!stageDamage){
     if (player[a].phys.chargeFrames > 0) {
-      damage *= 1 + (player[a].phys.chargeFrames * (0.3671 / 60));
+      // ftCo_800DEEB8 (ft_0DF0.c:32). See smashCharge.js -- the constants were
+      // right, the float64 arithmetic around them was not.
+      damage = applySmashCharge(damage, player[a].phys.chargeFrames);
     }
     if (actionStates[characterSelections[a]][player[a].actionState].specialOnHit) {
       actionStates[characterSelections[a]][player[a].actionState].onPlayerHit(a);
@@ -497,10 +653,19 @@ export function executeRegularHit (input, v, a, h, shieldHit, isThrow, drawBounc
       phantomQueue.push([a, v]);
       player[v].phys.phantomDamage = 0.5 * damage;
     } else {
-      player[a].hit.hitlag = Math.floor(damage * (1 / 3) + 3);
+      player[a].hit.hitlag = calcHitlag(damage, {crouching: isCrouching(a), cap: false});
     }
+    // ft_80089228 (ft_0881.c:363), then plStale_UpdateStaleMovesFromFighter
+    // (plstale.c:41). Order matters: the multiplier is read BEFORE this hit is
+    // recorded, so a move does not stale itself on the swing that lands it.
+    //
+    // The push is deduped on (id, instance) across all ten slots, so a
+    // multi-hit move, or one swing connecting with two opponents, still only
+    // occupies a single entry.
+    const moveId = moveIdFor(characterSelections[a], player[a].actionState);
+    staledDamage = staleDamage(player[a].staleTable, moveId, damage);
+    pushStaleMove(player[a].staleTable, moveId, player[a].phys.attackInstance);
   }
-  // TODO: STALING + KNOCKBACK STACKING
 
   if (shieldHit) {
     executeShieldHit(input, v, a, h, damage);
@@ -514,7 +679,7 @@ export function executeRegularHit (input, v, a, h, shieldHit, isThrow, drawBounc
     return;
   }
   if (phantom) {
-    player[v].hit.hitlag = Math.floor(damage * (1 / 3) + 3);
+    player[v].hit.hitlag = calcHitlag(damage, {crouching: isCrouching(v)});
     player[v].hit.knockback = 0;
     let frame = player[a].hitboxes.frame;
     if(frame > 1){
@@ -537,7 +702,11 @@ export function executeRegularHit (input, v, a, h, shieldHit, isThrow, drawBounc
   if (actionStates[characterSelections[v]][player[v].actionState].downed && damage < 7) {
     jabReset = true;
   }
-  player[v].hit.knockback = getKnockback(hitbox, damage, damage, player[v].percent, player[v].charAttributes.weight, crouching, vCancel);
+  // STALED first, UNSTALED second -- the two are finally different. The staled
+  // value is the damage this hit adds to the victim's percent inside the
+  // knockback formula; the unstaled one is what the formula multiplies by. See
+  // getKnockback's own comment and ftColl_80079AB0.
+  player[v].hit.knockback = getKnockback(hitbox, staledDamage, damage, player[v].percent, player[v].charAttributes.weight, crouching, vCancel);
   player[v].hit.angle = hitbox.angle;
   if (player[v].hit.angle == 361) {
     if (player[v].hit.knockback < 32.1) {
@@ -547,7 +716,7 @@ export function executeRegularHit (input, v, a, h, shieldHit, isThrow, drawBounc
     }
   }
 
-  player[v].hit.hitlag = Math.floor(damage * (1 / 3) + 3);
+  player[v].hit.hitlag = calcHitlag(damage, {crouching: isCrouching(v)});
 
   if (!isThrow) {
     if (stageDamage) {
@@ -611,7 +780,9 @@ export function executeRegularHit (input, v, a, h, shieldHit, isThrow, drawBounc
     }
   }
 
-  player[v].percent += damage;
+  // The percent takes the STALED damage. This is the visible half of staling:
+  // a move spammed nine times deals 55% of its listed damage.
+  player[v].percent += staledDamage;
 
   // if victim is grabbing someone, put the victim's grab victim into a grab release
   if (player[v].phys.grabbing > -1) {
@@ -853,153 +1024,88 @@ export function executeGrabTech (a,v,input){
     });
 }
 
+// ftColl_80079AB0 (decomp: src/melee/ft/ftcoll.c:2387) followed by
+// ftCo_Damage_CalcKnockback (ftCo_Damage.c:118).
+//
+// The previous formula here was ALGEBRAICALLY CORRECT in both branches --
+// `(sk*10/20)+1` is the decomp's `1 + 0.5*setKb`, and `1.4*(200/(weight+100))`
+// is its weight curve `xF8 - (w*xF8)/(1+w)` rearranged. What was wrong:
+//
+//  1. vCancel applied `kb *= 0.95`. THAT IS THE WRONG QUANTITY AND THE WRONG
+//     PLACE. The shield-button scale (x1AC) is 1.0 in retail -- a no-op. The
+//     real 0.95 is x190, applied to the VELOCITY MAGNITUDE when airborne
+//     (ftCo_Damage.c:346), not to knockback. The parameter is kept so callers
+//     are unchanged, but it is deliberately ignored.
+//  2. Crouch cancel used 0.67; the value is 2/3 (0.6666666865348816).
+//  3. All literals were float64. calcKnockback uses the exact float32
+//     constants read from PlCo.dat.
+//  4. kb_min and armour were absent (applyKnockbackModifiers handles both).
+//
+// `percent` here is Melee's `count + percentTemp`: the integer percent before
+// the hit, plus the STALED damage this hit applies. The damage multiplied into
+// the formula is the UNSTALED value -- Melee stales the percent you take but
+// not the knockback.
 export function getKnockback (hb,damagestaled,damageunstaled,percent,weight,crouching,vCancel) {
-    if (hb.sk == 0) {
-        var kb = ((0.01 * hb.kg) * ((1.4 * (((0.05 * (damageunstaled * (damagestaled + Math.floor(percent)))) + (
-        damagestaled + Math.floor(percent)) * 0.1) * (2.0 - (2.0 * (weight * 0.01)) / (1.0 + (weight * 0.01))))) +
-        18) + hb.bk);
-    } else {
-        //var kb = ((((setKnockback * 10 / 20) + 1) * 1.4 * (200/(weight + 100)) + 18) * (growth / 100)) + base;
-        var kb = ((((hb.sk * 10 / 20) + 1) * 1.4 * (200 / (weight + 100)) + 18) * (hb.kg / 100)) + hb.bk;
-    }
-    if (kb > 2500) {
-        kb = 2500;
-    }
-    if (crouching) {
-        kb *= 0.67;
-    }
-    if (vCancel) {
-        kb *= 0.95;
-    }
-
-    return kb;
+    void vCancel;   // see (1) above -- intentionally unused
+    const kb = calcKnockback({
+        percent: damagestaled + Math.floor(percent),
+        unstaledDamage: damageunstaled,
+        weight: weight,
+        kbGrowth: hb.kg,
+        baseKb: hb.bk,
+        setKb: hb.sk,
+    });
+    return applyKnockbackModifiers(kb, { crouching: crouching });
 }
 
-export function getLaunchAngle (trajectory, knockback, reverse, x, y, v) {
-    var deadzone = false;
-    //console.log(trajectory);
-    var diAngle;
-    if (knockback < 80 && player[v].phys.grounded && (trajectory == 0 || trajectory == 180)) {
-        deadzone = true;
-    }
-    if (x < 0.2875 && x > -0.2875) {
-        x = 0;
-    }
-    if (y < 0.2875 && y > -0.2875) {
-        y = 0;
-    }
-    if (x == 0 && y < 0) {
-        diAngle = 270;
-    } else if (x == 0 && y > 0) {
-        diAngle = 90;
-    } else if (x == 0 && y == 0) {
-        deadzone = true;
-    } else {
-        diAngle = Math.atan(y / x) * (180 / Math.PI) * 1;
-        if (x < 0) {
-            diAngle += 180;
-        } else if (y < 0) {
-            diAngle += 360;
-        }
-    }
-    //console.log(deadzone);
+// REMOVED: getLaunchAngle(trajectory, knockback, reverse, x, y, v).
+//
+// meleelight's DI, worked in DEGREES: it turned the stick into a compass
+// bearing with Math.atan, took the signed difference against the trajectory,
+// and bent the angle by up to 18 degrees scaled by sin(difference)^2.
+//
+// Melee's DI is ftCo_8008E5A4 (ftCo_Damage.c:591), and it never forms an
+// angle difference at all -- it projects the stick onto the knockback vector
+// with a dot and a cross product, squares that, and rotates by
+// MTXDegToRad(x1A8) * that. It is ported in knockback.js as applyDI(), which
+// is what the engine calls. This copy was still exported and still imported
+// by physics.js, but nothing called it.
+//
+// It also carried a 0.2875 stick deadzone found nowhere in the game, and
+// `Math.atan(y/x)` with quadrant fixups where Melee uses atan2f.
 
-    if (trajectory == 361) {
-        if (knockback < 32.1) {
-            if (reverse) {
-                trajectory = 180;
-            } else {
-                trajectory = 0;
-            }
-        } else if (knockback >= 32.1) {
-            if (reverse) {
-                trajectory = 136;
-            } else {
-                trajectory = 44;
-            }
-        } else {
-            prompt("Why would this ever get called?");
-            trajectory = 440 * (knockback - 32);
-            if (reverse) {
-                trajectory = 180 - trajectory;
-                if (trajectory < 0) {
-                    trajectory = 360 + trajectory;
-                }
-            }
-        }
-    } else {
-        if (reverse) {
-            trajectory = 180 - trajectory;
-            if (trajectory < 0) {
-                trajectory = 360 + trajectory;
-            }
-        }
-    }
+// REMOVED: getHorizontalVelocity / getVerticalVelocity / getHorizontalDecay /
+// getVerticalDecay.
+//
+// These were meleelight's launch-velocity and knockback-decay math, and they
+// had already been superseded -- the live path is knockback.js, which follows
+// ftCo_Damage.c:336 (`x = scaled_kb * cosf(angle)`) and fighter.c:2196 (decay
+// with the angle RECOMPUTED from the current knockback vector each frame). All
+// four were still exported and still imported by physics.js and WALLDAMAGE.js,
+// but never called, so they sat as a float64 shadow of the correct code with
+// nothing marking them stale.
+//
+// They also carried two errors worth recording, in case the shape reappears:
+// `Math.round(v * 100000) / 100000` was a five-decimal quantisation with no
+// counterpart anywhere in Melee, and the decay was frozen per-axis at launch
+// rather than recomputed, so a second hit landing mid-launch kept decaying
+// along the OLD trajectory.
 
-    //console.log(trajectory);
-
-    if (!deadzone) {
-        var rAngle = trajectory - diAngle;
-        if (rAngle > 180) {
-            rAngle -= 360;
-        }
-
-        var pDistance = Math.sin(rAngle * angleConversion) * Math.sqrt(x * x + y * y);
-
-        var angleOffset = pDistance * pDistance * 18;
-        if (angleOffset > 18) {
-            angleOffset = 18;
-        }
-
-        if (rAngle < 0 && rAngle > -180) {
-            angleOffset *= -1;
-        }
-    } else {
-        var angleOffset = 0;
-    }
-    var newtraj = trajectory - angleOffset;
-    if (newtraj < 0.01) {
-        newtraj = 0;
-    }
-    return newtraj;
-}
-
-export function getHorizontalVelocity (knockback, angle) {
-  var initialVelocity = knockback * 0.03;
-  var horizontalAngle = Math.cos(angle * angleConversion);
-  var horizontalVelocity = initialVelocity * horizontalAngle;
-  horizontalVelocity = Math.round(horizontalVelocity * 100000) / 100000;
-  return horizontalVelocity;
-}
-
-export function getVerticalVelocity (knockback, angle,grounded,trajectory) {
-  var initialVelocity = knockback * 0.03;
-  var verticalAngle = Math.sin(angle * angleConversion);
-  var verticalVelocity = initialVelocity * verticalAngle;
-  verticalVelocity = Math.round(verticalVelocity * 100000) / 100000;
-  if (knockback < 80 && grounded && (trajectory == 0 || trajectory == 180)) {
-    verticalVelocity = 0;
-  }
-  return verticalVelocity;
-}
-
-export function getHorizontalDecay (angle) {
-  var decay = 0.051 * Math.cos(angle * angleConversion)
-  decay = Math.round(decay * 100000) / 100000;
-  return decay;
-}
-
-export function getVerticalDecay (angle) {
-  var decay = 0.051 * Math.sin(angle * angleConversion)
-  decay = Math.round(decay * 100000) / 100000;
-  return decay;
-}
-
+// ftCo_8008DCE0 (decomp: ftCo_Damage.c:292):
+//
+//   fp->mv.co.damage.x0 = (int)(kb_applied * x154);
+//   if (!fp->mv.co.damage.x0) fp->mv.co.damage.x0 = 1;
+//
+// Two fixes over `Math.floor(knockback * .4)`:
+//  1. The MINIMUM OF 1 was missing -- any connecting hit gives at least one
+//     frame of hitstun even when the knockback rounds down to zero.
+//  2. `.4` is the float64 nearest 0.4; the game multiplies by the float32
+//     (0.4000000059604645). calcHitstun uses the exact value.
+//
+// Kept as a wrapper so both call sites (hitDetection.js and article.js) are
+// fixed without changing their signatures.
 export function getHitstun (knockback) {
-  //if (groundDownHitType == "Fly"){
-  //knockback *= 1.25;
-  //}
-  return Math.floor(knockback * .4);
+  return calcHitstun(knockback);
 }
 
 export function knockbackSounds (type,knockback,v){

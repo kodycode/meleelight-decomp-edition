@@ -4,6 +4,7 @@ import {player, characterSelections} from "main/main";
 import {turnOffHitboxes, reduceByTraction, randomShout} from "physics/actionStateShortcuts";
 import {sounds} from "main/sfx";
 
+import {setGroundVelocity} from "physics/groundMovement";
 export default {
   name : "FORWARDSMASH",
   canEdgeCancel : false,
@@ -44,16 +45,16 @@ export default {
     if (!this.interrupt(p,input)){
       reduceByTraction(p,true);
       if (player[p].timer < 9){
-        player[p].phys.cVel.x = 0;
+        setGroundVelocity(p, 0);
       }
       else if (player[p].timer < 15){
-        player[p].phys.cVel.x = 1.54*player[p].phys.face;
+        setGroundVelocity(p, 1.54*player[p].phys.face);
       }
       else if (player[p].timer < 31){
-        player[p].phys.cVel.x = 1.14*player[p].phys.face;
+        setGroundVelocity(p, 1.14*player[p].phys.face);
       }
       else {
-        player[p].phys.cVel.x = 0;
+        setGroundVelocity(p, 0);
       }
 
 

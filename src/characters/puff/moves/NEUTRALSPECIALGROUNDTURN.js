@@ -3,6 +3,7 @@ import {sounds} from "../../../main/sfx";
 import {turnOffHitboxes} from "../../../physics/actionStateShortcuts";
 import puff from "./index";
 import {drawVfx} from "../../../main/vfx/drawVfx";
+import {setGroundVelocity} from "physics/groundMovement";
 export default {
   name: "NEUTRALSPECIALGROUNDTURN",
   canEdgeCancel: false,
@@ -25,7 +26,7 @@ export default {
     player[p].phys.rollOutTurnTimer++;
     player[p].phys.rollOutDistance++;
     if (!puff.NEUTRALSPECIALGROUNDTURN.interrupt(p, input)) {
-      player[p].phys.cVel.x = (player[p].phys.rollOutVel * player[p].phys.face * -1) - (player[p].phys.rollOutVel * 0.045 * player[p].phys.rollOutTurnTimer * player[p].phys.face * -1);
+      setGroundVelocity(p, (player[p].phys.rollOutVel * player[p].phys.face * -1) - (player[p].phys.rollOutVel * 0.045 * player[p].phys.rollOutTurnTimer * player[p].phys.face * -1));
       if (player[p].phys.rollOutDistance % 5 === 0) {
         drawVfx({
           name: "dashDust",
@@ -42,7 +43,7 @@ export default {
       return true;
     }
     else if (player[p].phys.rollOutTurnTimer > 28) {
-      player[p].phys.cVel.x = player[p].phys.rollOutVel * player[p].phys.face;
+      setGroundVelocity(p, player[p].phys.rollOutVel * player[p].phys.face);
       player[p].actionState = "NEUTRALSPECIALGROUND";
       player[p].timer = 15 + player[p].timer;
       if (player[p].phys.rollOutCharge >= 19) {

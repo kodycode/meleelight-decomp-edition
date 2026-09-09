@@ -1,0 +1,32 @@
+{
+  "falco": {
+    "ATTACKDASH": 40,
+    "CLIFFJUMPQUICK": 59,
+    "CLIFFJUMPSLOW": 59,
+    "UPSMASH": 44
+  },
+  "falcon": {
+    "ATTACKDASH": 40,
+    "CLIFFJUMPQUICK": 45,
+    "CLIFFJUMPSLOW": 55,
+    "UPSMASH": 55
+  },
+  "fox": {
+    "ATTACKDASH": 40,
+    "CLIFFJUMPQUICK": 53,
+    "CLIFFJUMPSLOW": 53,
+    "UPSMASH": 42
+  },
+  "marth": {
+    "ATTACKDASH": 50,
+    "CLIFFJUMPQUICK": 52,
+    "CLIFFJUMPSLOW": 59,
+    "UPSMASH": 55
+  },
+  "puff": {
+    "ATTACKDASH": 40,
+    "CLIFFJUMPQUICK": 40,
+    "CLIFFJUMPSLOW": 49,
+    "UPSMASH": 55
+  }
+}

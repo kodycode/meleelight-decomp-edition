@@ -1,5 +1,9 @@
 import {checkForJump, shieldSize, shieldDepletion, shieldTilt, reduceByTraction, actionStates} from "physics/actionStateShortcuts";
+import {PLATFORM_DROP_STICK_THRESHOLD, PLATFORM_DROP_WINDOW} from "physics/meleeCommon";
 import {characterSelections, player} from "main/main";
+// UCF shield drop (shielddrop.S + shielddrop_extended.cpp); both are
+// no-ops unless the UCF toggle is on.
+import {spotDodgeThresholdY, ucfShieldDrop} from "physics/ucf";
 export default {
   name : "GUARD",
   canEdgeCancel : true,
@@ -14,14 +18,14 @@ export default {
   },
   main : function(p,input){
     if (player[p].hit.shieldstun > 0){
-      reduceByTraction(p,false);
+      reduceByTraction(p,true);
       shieldTilt(p,true,input);
     }
     else {
       player[p].timer++;
       if (!actionStates[characterSelections[p]].GUARD.interrupt(p,input)){
         if (!player[p].inCSS){
-          reduceByTraction(p,false);
+          reduceByTraction(p,true);
           shieldDepletion(p,input);
         }
         shieldTilt(p,false,input);
@@ -42,7 +46,7 @@ export default {
         actionStates[characterSelections[p]].GRAB.init(p,input);
         return true;
       }
-      else if ((input[p][0].lsY < -0.7 && input[p][4].lsY > -0.3) || input[p][0].csY < -0.7){
+      else if ((input[p][0].lsY < spotDodgeThresholdY(p, input, player[p].phys.stickTiltTimerX) && input[p][4].lsY > -0.3) || input[p][0].csY < -0.7){
         player[p].phys.shielding = false;
         actionStates[characterSelections[p]].ESCAPEN.init(p,input);
         return true;
@@ -57,7 +61,11 @@ export default {
         actionStates[characterSelections[p]].ESCAPEB.init(p,input);
         return true;
       }
-      else if (input[p][0].lsY < -0.65 && input[p][6].lsY > -0.3 && player[p].phys.onSurface[0] === 1){
+      // ftCo_80099F1C (ftCo_Pass.c:28): `lsY <= -x464 && tiltTimerY < x468
+      // && IsOnPlatform`. 0.66 with a SIX frame window; meleelight used 0.65
+      // with a fixed six-frame lookback, which is the same idea but only
+      // samples one frame of the six.
+      else if ((input[p][0].lsY <= -PLATFORM_DROP_STICK_THRESHOLD && player[p].phys.stickTiltTimerY < PLATFORM_DROP_WINDOW || ucfShieldDrop(p, input)) && player[p].phys.onSurface[0] === 1){
         player[p].phys.shielding = false;
         actionStates[characterSelections[p]].PASS.init(p,input);
         return true;

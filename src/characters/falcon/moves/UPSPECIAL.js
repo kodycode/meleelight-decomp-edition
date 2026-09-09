@@ -1,4 +1,6 @@
 import falcon from "./index";
+import {HORIZONTAL_STICK_DEADZONE} from "physics/meleeCommon";
+import {add, mul, neg} from "physics/f32";
 import {player} from "../../../main/main";
 import {turnOffHitboxes, fastfall, airDrift} from "../../../physics/actionStateShortcuts";
 import {sounds} from "../../../main/sfx";
@@ -103,19 +105,35 @@ export default {
           player[p].phys.face *= -1;
         }
       }
+      // cVel-channel: self_vel (ftcaptainspecialhi.c:92 ftCa_SpecialHi_Phys).
+      //
+      // Falcon Dive does NOT use the grounded velocity channel, even in its
+      // grounded state: ftCa_SpecialHi_Phys writes fp->self_vel.x/y directly,
+      // and ftCa_SpecialAirHi_Phys (:189) is a bare call to that same function
+      // -- the two states share one implementation. So the cVel.x writes below
+      // are right as they stand, and routing them through gr_vel would be the
+      // bug rather than the fix. The dive lifts off immediately, which is
+      // presumably why Melee never bothers with the floor projection here.
       if (player[p].timer > 1) {
         player[p].phys.cVel.x -= falcon.UPSPECIAL.setVelocities[player[p].timer-2][0]*player[p].phys.face;
       }
-      player[p].phys.cVel.x += input[p][0].lsX * 0.044;
-      if (Math.abs(input[p][0].lsX) < 0.28) {
+      // cVel-channel: self_vel (ftcaptainspecialhi.c:92) -- continues the block
+      // above; the drift clamp and the animation term are the same channel.
+      const dAttr = player[p].charAttributes;
+      const diveAccel = mul(dAttr.airMobA, dAttr.diveAirFrictionMul);
+      const diveMax = mul(dAttr.aerialHmaxV, dAttr.diveHorzVelMul);
+      player[p].phys.cVel.x = add(player[p].phys.cVel.x, mul(input[p][0].lsX, diveAccel));
+      if (Math.abs(input[p][0].lsX) < HORIZONTAL_STICK_DEADZONE) {
         player[p].phys.cVel.x = 0;
       }
-      if (player[p].phys.cVel.x < -0.952) {
-        player[p].phys.cVel.x = -0.952;
+      if (player[p].phys.cVel.x < neg(diveMax)) {
+        player[p].phys.cVel.x = neg(diveMax);
       }
-      if (player[p].phys.cVel.x > 0.952) {
-        player[p].phys.cVel.x = 0.952;
+      if (player[p].phys.cVel.x > diveMax) {
+        player[p].phys.cVel.x = diveMax;
       }
+      // cVel-channel: self_vel (ftcaptainspecialhi.c:92) -- the clamp above and
+      // the animation term below are the same channel as the rest of the dive.
       player[p].phys.cVel.x += falcon.UPSPECIAL.setVelocities[player[p].timer-1][0] * player[p].phys.face;
       player[p].phys.cVel.y = falcon.UPSPECIAL.setVelocities[player[p].timer-1][1];
       if (player[p].timer === 13){

@@ -3,6 +3,7 @@ import {characterSelections,  player} from "main/main";
 import {sounds} from "main/sfx";
 import {framesData} from 'main/characters';
 import {drawVfx} from "main/vfx/drawVfx";
+import {setGroundVelocity} from "physics/groundMovement";
 export default {
   name : "SHIELDBREAKDOWNBOUND",
   canEdgeCancel : true,
@@ -29,7 +30,7 @@ export default {
         reduceByTraction(p,true);
       }
       else {
-        player[p].phys.cVel.x = 0;
+        setGroundVelocity(p, 0);
       }
     }
   },

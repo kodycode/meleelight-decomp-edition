@@ -14,6 +14,7 @@ import {tiltTurnDashBuffer, checkForTiltTurn, checkForSmashTurn, checkForDash, c
 } from "physics/actionStateShortcuts";
 import {sounds} from "main/sfx";
 import {player} from "main/main";
+import {setGroundVelocity} from "physics/groundMovement";
 
 export default {
   name : "JAB2",
@@ -32,13 +33,13 @@ export default {
     player[p].timer++;
     if (!this.interrupt(p,input)){
       if (player[p].timer === 1){
-        player[p].phys.cVel.x = 0;
+        setGroundVelocity(p, 0);
       }
       else if (player[p].timer === 2){
-        player[p].phys.cVel.x = 3.36*player[p].phys.face;
+        setGroundVelocity(p, 3.36*player[p].phys.face);
       }
       else if (player[p].timer === 4){
-        player[p].phys.cVel.x = 0;
+        setGroundVelocity(p, 0);
       }
       if (player[p].timer > 0 && player[p].timer < 21 && input[p][0].a && !input[p][1].a){
         player[p].phys.jabCombo = true;

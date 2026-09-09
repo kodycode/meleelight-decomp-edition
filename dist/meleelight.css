@@ -594,11 +594,19 @@ a {
 
 #buttons {
   position:absolute;
-  width:650px;
+  /* SELF-CENTRING. This used to be a hand-computed width and left offset
+     (650px/left:307px), which fitted exactly five buttons and wrapped LAYERS
+     onto a second line the moment MUSIC was added -- and then needed
+     recomputing again for STAGE VFX and HITBOX. Spanning the canvas and
+     centring the inline-blocks means adding a button costs nothing. */
+  width:1200px;
   height:50px;
   background-color:none;
-  left:307px;
+  left:0px;
+  text-align:center;
   top:700px;
+  /* Belt and braces: never wrap, whatever the button count. */
+  white-space:nowrap;
 }
 
 .gameButton {
@@ -608,6 +616,15 @@ a {
   background-color:rgba(0, 0, 0, 0.3);
   border-radius:10px;
   margin:0px 5px;
+}
+
+/* Labels that do not fit the shared 100px width at 13px bold. */
+#stageVfxButton {
+  width:140px;
+}
+
+#hitboxButton {
+  width:120px;
 }
 
 .gameButton p {

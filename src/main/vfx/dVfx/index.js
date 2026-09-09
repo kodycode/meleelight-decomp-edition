@@ -25,7 +25,18 @@ import hitSparks from "main/vfx/dVfx/hitSparks";
 import furaFura from "main/vfx/dVfx/furaFura";
 import illusion from "main/vfx/dVfx/illusion";
 import impactLand from "main/vfx/dVfx/impactLand";
-import index from "main/vfx/dVfx/index";
+// REMOVED: `import index from "main/vfx/dVfx/index";` -- this file importing
+// itself. The list below is an alphabetical sweep of this directory and
+// index.js got caught up in it. Under the old babel es2015 -> CommonJS build
+// the self-require returned the half-built exports object, so `index` was
+// simply `undefined` and nothing ever noticed. Native ES modules make the
+// same access a TDZ error ("Cannot access '__WEBPACK_DEFAULT_EXPORT__'
+// before initialization"), which threw while the bundle was evaluating and
+// took `start` down with it -- a black canvas and nothing else.
+//
+// Dropping it restores the old behaviour: `dVfx.index` was never a usable
+// effect, and lookups are all `dVfx[queuedEffectName]`, which is never
+// "index".
 import laser from "main/vfx/dVfx/laser";
 import laserSpark from "main/vfx/dVfx/laserSpark";
 import normalhit from "main/vfx/dVfx/normalhit";
@@ -75,7 +86,6 @@ export default {
   hitSparks,
   illusion,
   impactLand,
-  index,
   laser,
   laserSpark,
   normalhit,

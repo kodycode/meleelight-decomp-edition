@@ -1,9 +1,21 @@
 import {characterSelections, player} from "main/main";
-import {actionStates} from "physics/actionStateShortcuts";
+import {LEDGE_ATTACK_CSTICK_THRESHOLD} from "physics/meleeCommon";
+import {checkForJump, actionStates} from "physics/actionStateShortcuts";
 
 import {framesData} from 'main/characters';
 export default {
   name : "CLIFFWAIT",
+  // The ledge states drive position by SNAPPING phys.pos from their offset
+  // table every frame, which walks the fighter up the OUTSIDE of the stage
+  // wall. Running ordinary environment collision at the same time sweeps the
+  // ECB from below the lip to above it, hits the wall/ledge corner, and the
+  // resolver pushes the fighter straight back out and down -- getting up off
+  // a ledge dropped you back onto it.
+  //
+  // Melee does not run environment collision here either: the cliff states'
+  // Coll callback is ftCo_CliffCatch_Coll (ftcliffcommon.c:128), a
+  // ledge-specific check, not the ground/wall resolver.
+  ignoreCollision : true,
   canGrabLedge : false,
   canBeGrabbed : false,
   wallJumpAble : false,
@@ -27,7 +39,10 @@ export default {
       actionStates[characterSelections[p]].FALL.init(p,input,true);
       return true;
     }
-    else if ((input[p][0].x && !input[p][1].x) || (input[p][0].y && !input[p][1].y) || (input[p][0].lsY > 0.65 && input[p][1].lsY <= 0.65)){
+    // ftCo_8009B170 (ftCo_CliffJump.c:21) is a bare call to
+    // ftCo_Jump_GetInput -- the ledge jump uses the SAME tap-jump rule as
+    // every other jump, not a bespoke 0.65 crossing.
+    else if (checkForJump(p,input)[0]){
       if (player[p].percent < 100){
         actionStates[characterSelections[p]].CLIFFJUMPQUICK.init(p,input);
       }
@@ -45,7 +60,9 @@ export default {
       }
       return true;
     }
-    else if ((input[p][0].a && !input[p][1].a) || (input[p][0].b && !input[p][1].b) || (input[p][0].csY > 0.65 && input[p][1].csY <= 0.65)){
+    // ftCo_8009AE38 (ftCo_CliffAttack.c:29): A or B pressed, or the c-stick
+    // crossing x7F8 upward (ftCo_800DF6F8). 0.6625, not 0.65.
+    else if ((input[p][0].a && !input[p][1].a) || (input[p][0].b && !input[p][1].b) || (input[p][0].csY >= LEDGE_ATTACK_CSTICK_THRESHOLD && input[p][1].csY < LEDGE_ATTACK_CSTICK_THRESHOLD)){
       if (player[p].percent < 100){
         actionStates[characterSelections[p]].CLIFFATTACKQUICK.init(p,input);
       }

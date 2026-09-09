@@ -7,6 +7,7 @@ import {tiltTurnDashBuffer, checkForTiltTurn, checkForSmashTurn, checkForDash, c
 import {actionSounds,framesData} from "main/characters";
 import {sounds} from "main/sfx";
 import {characterSelections, player} from "main/main";
+import {setGroundVelocity} from "physics/groundMovement";
 export default {
   name : "OTTOTTOWAIT",
   canEdgeCancel : false,
@@ -17,7 +18,7 @@ export default {
     if (characterSelections[p] !== 1 && characterSelections[p] !== 4){
       sounds[actionSounds[characterSelections[p]].OTTOTTOWAIT[0][1]].play();
     }
-    player[p].phys.cVel.x = 0;
+    setGroundVelocity(p, 0);
     actionStates[characterSelections[p]].OTTOTTOWAIT.main(p,input);
   },
   main : function(p,input){

@@ -3,6 +3,7 @@ import {turnOffHitboxes, randomShout, reduceByTraction} from "../../../physics/a
 import puff from "./index";
 import {sounds} from "../../../main/sfx";
 import WAIT from "../../shared/moves/WAIT";
+import {setGroundVelocity} from "physics/groundMovement";
 export default {
   name: "FORWARDSMASH",
   canEdgeCancel: false,
@@ -43,7 +44,7 @@ export default {
     if (!puff.FORWARDSMASH.interrupt(p, input)) {
       reduceByTraction(p, true);
 
-      player[p].phys.cVel.x = puff.FORWARDSMASH.setVelocities[player[p].timer - 1] * player[p].phys.face;
+      setGroundVelocity(p, puff.FORWARDSMASH.setVelocities[player[p].timer - 1] * player[p].phys.face);
       if (player[p].timer === 6) {
         randomShout(characterSelections[p]);
       }

@@ -21,7 +21,11 @@ export default {
   main: function (p, input) {
     player[p].timer++;
     if (!marth.GRAB.interrupt(p, input)) {
-      reduceByTraction(p, true);
+      // PLAIN traction. ftCo_Catch_Phys (ftCo_Catch.c:151) is
+      // ApplyFrictionGround(fp, x64 * ground_friction) and x64 is 1.0 on the
+      // disc -- the grab states are NOT ft_80084F3C and never double above
+      // walk speed, which is what a grab out of a dash is.
+      reduceByTraction(p,false);
       if (player[p].timer === 7) {
         player[p].hitboxes.active = [true, true, true, false];
         player[p].hitboxes.frame = 0;

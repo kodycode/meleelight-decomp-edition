@@ -3,7 +3,6 @@ import {actionStates} from "physics/actionStateShortcuts";
 import {sounds} from "main/sfx";
 import {framesData} from 'main/characters';
 import {drawVfx} from "main/vfx/drawVfx";
-import {getHorizontalDecay, getVerticalDecay} from "physics/hitDetection";
 import {reflect, dotProd} from "main/linAlg";
 import {Vec2D} from "main/util/Vec2D";
 

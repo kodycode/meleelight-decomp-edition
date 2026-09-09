@@ -18,6 +18,11 @@ export default {
     player[p].actionState = "JUMPAERIAL2";
     player[p].timer = 0;
     player[p].phys.fastfalled = false;
+    // ftCo_800CBAC4 (ftCo_JumpAerial.c:150), arg3 true from
+    // ftCo_JumpAerial_Enter_Basic:176. An aerial jump stamps the stick tilt
+    // timer expired too, so a held UP cannot spend the next jump as well --
+    // without it a multi-jump character burns all five on one flick.
+    player[p].phys.stickTiltTimerY = 254;
     player[p].phys.doubleJumped = true;
     player[p].phys.cVel.y = 1.59;
     player[p].phys.cVel.x = (input[p][0].lsX * 0.5);

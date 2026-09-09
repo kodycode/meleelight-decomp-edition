@@ -8,7 +8,8 @@ import {sounds} from "main/sfx";
 import {drawStartScreenInit, drawStartScreen} from "menus/startscreen";
 import {drawBackgroundInit, drawStageInit, drawBackground, drawStage, setBackgroundType, createSnow} from "stages/stagerender";
 import {drawSSSInit, sssControls, drawSSS} from "menus/stageselect";
-import {drawAudioMenuInit, masterVolume, drawAudioMenu, audioMenuControls, getAudioCookies} from "menus/audiomenu";
+import {drawAudioMenuInit, masterVolume, drawAudioMenu, audioMenuControls, getAudioCookies, applyMusicVolume,
+        musicMuted, toggleMusicMuted} from "menus/audiomenu";
 import {drawGameplayMenuInit, drawGameplayMenu, gameplayMenuControls, getGameplayCookies} from "menus/gameplaymenu";
 import {drawKeyboardMenuInit, keyboardMenuControls, drawKeyboardMenu, getKeyboardCookie} from "menus/keyboardmenu";
 import {drawControllerMenuInit, drawControllerMenu} from "menus/controllermenu";
@@ -28,15 +29,21 @@ import {runAI} from "main/ai";
 import {physics} from "physics/physics";
 import $ from 'jquery';
 import {toggleTransparency,getTransparency} from "main/vfx/transparency";
+import {isUcfEnabled, toggleUcf, loadUcfPreference} from "physics/ucf";
 import {drawVfx} from "main/vfx/drawVfx";
 import {resetVfxQueue} from "main/vfx/vfxQueue";
 import {setVsStage, getActiveStage, activeStage} from "../stages/activeStage";
 import {MusicManager} from "./music";
-import {isShowSFX, toggleShowSFX} from "main/vfx";
+import {isShowStageVfx, toggleShowStageVfx, isShowEffectVfx, toggleShowEffectVfx,
+        isShowHitboxes, toggleShowHitboxes} from "main/vfx";
 import {renderVfx} from "./vfx/renderVfx";
 import {Box2D} from "./util/Box2D";
 import {Vec2D} from "./util/Vec2D";
-import {updateNetworkInputs, connectToMPRoom, retrieveNetworkInputs, giveInputs,connectToMPServer, syncGameMode} from "./multiplayer/streamclient";
+// `connectToMPRoom` dropped from this list: streamclient has never exported
+// it. The only definition is in multiplayer/mproom__disabled.js and the only
+// call site is commented out (menus/menu.js:114), so the name resolved to
+// undefined and was never used.
+import {updateNetworkInputs, retrieveNetworkInputs, giveInputs,connectToMPServer, syncGameMode} from "./multiplayer/streamclient";
 import {saveGameState, loadReplay, gameTickDelay} from "./replay";
 import {keyboardMap, showButton, nullInputs, pollInputs, inputData, setCustomCenters, nullInput} from "../input/input";
 import {deaden} from "../input/meleeInputs";
@@ -44,7 +51,8 @@ import {getGamepadNameAndInfo} from "../input/gamepad/findGamepadInfo";
 import {customGamepadInfo} from "../input/gamepad/gamepads/custom";
 import {buttonState} from "../input/gamepad/retrieveGamepadInputs";
 import {updateGamepadSVGState, updateGamepadSVGColour, setGamepadSVGColour, cycleGamepadColour} from "../input/gamepad/drawGamepad";
-import {deepCopy} from "./util/deepCopy";
+// util/deepCopy exports deepCopyObject and deepCopyArray -- there is no
+// `deepCopy`. The import was unused, so it only ever bound undefined.
 import {deepObjectMerge} from "./util/deepCopyObject";
 import {setTokenPosSnapToChar} from "../menus/css";
 /*globals performance*/
@@ -609,7 +617,9 @@ export function changeGamemode (newGamemode){
       break;
     case 15:
       drawCSSInit();
-      connectToMPServer();
+      // NETPLAY DISABLED -- connectToMPServer() is an inert stub now, and
+      // gameMode 15 is unreachable with the MP menu trimmed to Local VS.
+      // connectToMPServer();
 
       break;
 
@@ -844,10 +854,11 @@ function interpretPause(pause0, pause1) {
       playing ^= true;
       if (!playing) {
         sounds.pause.play();
-        changeVolume(MusicManager, masterVolume[1] * 0.3, 1);
+        // Duck through applyMusicVolume so pausing while muted stays silent.
+        applyMusicVolume(0.3);
         renderForeground();
       } else {
-        changeVolume(MusicManager, masterVolume[1], 1);
+        applyMusicVolume();
       }
     }
   }
@@ -1026,9 +1037,9 @@ export function gameTick (oldInputBuffers){
         if (diff > gamelogicTime[1]) {
           gamelogicTime[1] = diff;
         }
-        dom.gamelogicAvg.innerHTML = Math.round(gamelogicTime[0]);
-        dom.gamelogicHigh.innerHTML = Math.round(gamelogicTime[1]);
-        dom.gamelogicLow.innerHTML = Math.round(gamelogicTime[2]);
+        dom.gamelogicAvg.innerHTML = gamelogicTime[0].toFixed(2);
+        dom.gamelogicHigh.innerHTML = gamelogicTime[1].toFixed(2);
+        dom.gamelogicLow.innerHTML = gamelogicTime[2].toFixed(2);
         dom.gamelogicPeak.innerHTML = gamelogicTime[3];
       }
     } else {
@@ -1096,9 +1107,9 @@ export function gameTick (oldInputBuffers){
       if (diff > gamelogicTime[1]) {
         gamelogicTime[1] = diff;
       }
-      dom.gamelogicAvg.innerHTML = Math.round(gamelogicTime[0]);
-      dom.gamelogicHigh.innerHTML = Math.round(gamelogicTime[1]);
-      dom.gamelogicLow.innerHTML = Math.round(gamelogicTime[2]);
+      dom.gamelogicAvg.innerHTML = gamelogicTime[0].toFixed(2);
+      dom.gamelogicHigh.innerHTML = gamelogicTime[1].toFixed(2);
+      dom.gamelogicLow.innerHTML = gamelogicTime[2].toFixed(2);
       dom.gamelogicPeak.innerHTML = gamelogicTime[3];
     }
   } else if (findingPlayers) {
@@ -1135,8 +1146,10 @@ export function gameTick (oldInputBuffers){
 
     saveGameState(input,ports);
 
-  setTimeout(gameTick, 16, input);
-
+  // The tick no longer schedules itself. frameLoop() below drives it on a
+  // fixed 1/60 step off requestAnimationFrame; this just hands back the buffer
+  // that becomes the next tick's `oldInputBuffers`.
+  return input;
 }
 
 export function clearScreen (){
@@ -1150,8 +1163,10 @@ export function clearScreen (){
 
 let otherFrame = true;
 let fps30 = false;
+// Draws one frame. This used to schedule itself with requestAnimationFrame
+// while gameTick ran on its own setTimeout; frameLoop() now owns the schedule
+// and calls this after the logic for the frame has run.
 export function renderTick (){
-  window.requestAnimationFrame(renderTick);
   otherFrame ^= true;
   if ((fps30 && otherFrame) || !fps30) {
     //console.log("------");
@@ -1184,7 +1199,7 @@ export function renderTick (){
       if (playing || frameByFrameRender) {
         var rStart = performance.now();
         clearScreen();
-        if (isShowSFX()) {
+        if (isShowStageVfx()) {
           drawBackground();
         }
         drawStage();
@@ -1206,9 +1221,9 @@ export function renderTick (){
           if (diff < renderTime[2]) {
             renderTime[2] = diff;
           }
-          dom.renderAvg.innerHTML = Math.round(renderTime[0]);
-          dom.renderHigh.innerHTML = Math.round(renderTime[1]);
-          dom.renderLow.innerHTML = Math.round(renderTime[2]);
+          dom.renderAvg.innerHTML = renderTime[0].toFixed(2);
+          dom.renderHigh.innerHTML = renderTime[1].toFixed(2);
+          dom.renderLow.innerHTML = renderTime[2].toFixed(2);
           dom.renderPeak.innerHTML = renderTime[3];
         }
       }
@@ -1217,7 +1232,7 @@ export function renderTick (){
         if (!starting) {
           targetTimerTick();    
         }
-        if (isShowSFX()) {
+        if (isShowStageVfx()) {
           drawBackground();
         }
         drawStage();
@@ -1234,7 +1249,7 @@ export function renderTick (){
       //console.log("test2");
       var rStart = performance.now();
       clearScreen();
-      if (isShowSFX()) {
+      if (isShowStageVfx()) {
         drawBackground();
       }
       drawStage();
@@ -1261,9 +1276,9 @@ export function renderTick (){
           renderTime[2] = diff;
         }
 
-        dom.renderAvg.innerHTML = Math.round(renderTime[0]);
-        dom.renderHigh.innerHTML = Math.round(renderTime[1]);
-        dom.renderLow.innerHTML = Math.round(renderTime[2]);
+        dom.renderAvg.innerHTML = renderTime[0].toFixed(2);
+        dom.renderHigh.innerHTML = renderTime[1].toFixed(2);
+        dom.renderLow.innerHTML = renderTime[2].toFixed(2);
         dom.renderPeak.innerHTML = renderTime[3];
       }
     }
@@ -1278,6 +1293,90 @@ export function renderTick (){
       renderVfx(true);
     }
   }
+}
+
+// ---------------------------------------------------------------- frame loop
+//
+// Logic and drawing used to run on two unrelated clocks: gameTick on
+// `setTimeout(gameTick, 16, input)` and renderTick on requestAnimationFrame.
+// Measured over 4 seconds, that cost real latency and stability:
+//
+//   gameTick interval   mean 16.94ms  sd 2.48  max 23.7   (~59.0 fps, not 60)
+//   rAF interval        mean 16.67ms  sd 0.06
+//   logic -> presented  mean  7.06ms  p95 15.9  max 16.6
+//
+// The two rates are different (16 vs 16.67), so they slide past each other
+// continuously: a finished logic frame waited anywhere from 0 to a full frame
+// to be drawn, and the same input could land a frame earlier or later run to
+// run. Driving both from one rAF callback removes that wait and puts the logic
+// on a true 60Hz clock.
+//
+// AT MOST ONE LOGIC FRAME PER VIDEO FRAME, which is how Melee itself runs.
+//
+// The GameCube locks the game to video: poll, simulate, draw, present at
+// vblank, once per frame. It has no catch-up. When a frame overruns its
+// budget Melee drops a frame and everything slows down for a moment -- that is
+// what a "lag frame" is. It never simulates twice to make up wall-clock time.
+//
+// So the accumulator here does NOT run a backlog. It only decides whether this
+// video frame gets a logic frame, which is what makes a high-refresh display
+// behave: rAF fires at the DISPLAY rate, so ticking unconditionally would run
+// the match at 120 or 144Hz. Skipping instead keeps logic at 60 while a slow
+// frame stays a lag frame rather than becoming a fast-forward.
+//
+//   60Hz display   -> one tick every frame, in lock step, exactly Melee
+//   144Hz display  -> a tick on ~41% of frames, logic still 60Hz
+//   heavy load     -> frames drop, the game slows, as it does on console
+const LOGIC_STEP_MS = 1000 / 60;
+// Never let the accumulator bank more than one frame of debt: banking is
+// exactly the catch-up Melee does not do.
+const MAX_ACCUMULATED_MS = LOGIC_STEP_MS;
+const STALL_MS = 250;
+
+let logicAccumulator = 0;
+let lastFrameTime = null;
+let pendingInputBuffers = null;
+
+function frameLoop (now) {
+  window.requestAnimationFrame(frameLoop);
+
+  if (lastFrameTime === null) {
+    lastFrameTime = now;
+  }
+  let delta = now - lastFrameTime;
+  lastFrameTime = now;
+  // rAF stops entirely in a background tab, so the first frame back carries
+  // the whole hidden period. Running thousands of ticks to "catch up" would
+  // fast-forward the match; take a single step instead.
+  if (delta > STALL_MS) {
+    delta = LOGIC_STEP_MS;
+    logicAccumulator = 0;
+  }
+
+  logicAccumulator += delta;
+  if (logicAccumulator >= LOGIC_STEP_MS) {
+    pendingInputBuffers = gameTick(pendingInputBuffers);
+    logicAccumulator -= LOGIC_STEP_MS;
+    // Whatever is left over is this frame's phase, not a debt to repay. A
+    // frame that took 40ms leaves 23ms here; clamping it to one step means the
+    // next frame ticks once and the match has simply lost a frame, the way a
+    // lag frame works on console.
+    if (logicAccumulator > MAX_ACCUMULATED_MS) {
+      logicAccumulator = MAX_ACCUMULATED_MS;
+    }
+  }
+
+  renderTick();
+}
+
+export function startFrameLoop () {
+  pendingInputBuffers = [nullInputs(), nullInputs(), nullInputs(), nullInputs()];
+  logicAccumulator = 0;
+  lastFrameTime = null;
+  // One tick before the first frame, so the first draw has state to draw --
+  // start() used to do this by calling gameTick once directly.
+  pendingInputBuffers = gameTick(pendingInputBuffers);
+  window.requestAnimationFrame(frameLoop);
 }
 
 export function buildPlayerObject (i){
@@ -1362,7 +1461,10 @@ export function endGame (input){
     setPhantonQueue([]);
     resetAArticles();
   MusicManager.stopWhatisPlaying();
-  changeVolume(MusicManager, masterVolume[1], 1);
+  // This used to write the music volume directly, restoring the full level
+  // regardless of the mute -- so finishing a match and returning to character
+  // select turned the music back on while the button still read OFF.
+  applyMusicVolume();
   playing = false;
   clearScreen();
   drawStage();
@@ -1560,17 +1662,27 @@ export function start (){
   ui = layers.UI.getContext("2d");
   bg1.fillStyle = "rgb(0, 0, 0)";
   bg1.fillRect(0, 0, layers.BG1.width, layers.BG1.height);
-  let nullInputBuffers =  [nullInputs(), nullInputs(), nullInputs(), nullInputs()];
-  gameTick(nullInputBuffers);
-  renderTick();
+  // Logic and drawing are one loop now; startFrameLoop seeds the input buffers
+  // and runs the first tick before the first draw.
+  startFrameLoop();
 
+  // Two toggles, not one. Labels are set from the flags rather than assumed,
+  // so the markup and the defaults cannot drift apart: stage background off,
+  // gameplay effects on.
+  $("#effectsButtonEdit").empty().append(isShowEffectVfx() ? "ON" : "OFF");
   $("#effectsButton").click(function() {
-    if (isShowSFX()) {
-      $("#effectsButtonEdit").empty().append("OFF");
-    } else {
-      $("#effectsButtonEdit").empty().append("ON");
-    }
-    toggleShowSFX();
+    $("#effectsButtonEdit").empty().append(toggleShowEffectVfx() ? "ON" : "OFF");
+  });
+
+  $("#stageVfxButtonEdit").empty().append(isShowStageVfx() ? "ON" : "OFF");
+  $("#stageVfxButton").click(function() {
+    $("#stageVfxButtonEdit").empty().append(toggleShowStageVfx() ? "ON" : "OFF");
+  });
+
+  // Melee's developer hit/hurtbox view. Off by default.
+  $("#hitboxButtonEdit").empty().append(isShowHitboxes() ? "ON" : "OFF");
+  $("#hitboxButton").click(function() {
+    $("#hitboxButtonEdit").empty().append(toggleShowHitboxes() ? "ON" : "OFF");
   });
 
   $("#fpsButton").click(function() {
@@ -1589,6 +1701,22 @@ export function start (){
       $("#alphaButtonEdit").empty().append("ON");
     }
       toggleTransparency();
+  });
+
+  // Music mute. The label is set from the loaded preference rather than
+  // assumed, since getAudioCookies() above may have restored an unmuted one;
+  // the markup ships saying OFF because muted is the default.
+  // UCF -- the Universal Controller Fix, a community MOD rather than anything
+  // in the decomp, so it is OFF by default and the label is set from the
+  // stored preference rather than assumed. See src/physics/ucf.js.
+  $("#ucfButtonEdit").empty().append(loadUcfPreference() ? "ON" : "OFF");
+  $("#ucfButton").click(function() {
+    $("#ucfButtonEdit").empty().append(toggleUcf() ? "ON" : "OFF");
+  });
+
+  $("#musicButtonEdit").empty().append(musicMuted ? "OFF" : "ON");
+  $("#musicButton").click(function() {
+    $("#musicButtonEdit").empty().append(toggleMusicMuted() ? "OFF" : "ON");
   });
 
   $("#layerButton").hover(function() {

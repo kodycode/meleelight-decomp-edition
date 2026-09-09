@@ -95,6 +95,7 @@ var SMASHTURN = require("./SMASHTURN.js");
 var THROWNMARTHDOWN = require("./THROWNMARTHDOWN.js");
 var WALLTECH = require("./WALLTECH.js");
 var CATCHWAIT = require("./CATCHWAIT.js");
+var CATCHDASH = require("./CATCHDASH.js");
 var DEADRIGHT = require("./DEADRIGHT.js");
 var ESCAPEN = require("./ESCAPEN.js");
 var JAB1 = require("./JAB1.js");
@@ -239,6 +240,7 @@ module.exports = {
   THROWNMARTHDOWN: THROWNMARTHDOWN,
   WALLTECH: WALLTECH,
   CATCHWAIT: CATCHWAIT,
+  CATCHDASH: CATCHDASH,
   DEADRIGHT: DEADRIGHT,
   ESCAPEN: ESCAPEN,
   JAB1: JAB1,

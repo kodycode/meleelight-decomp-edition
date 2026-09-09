@@ -1,6 +1,10 @@
 import {checkForJump, shieldDepletion, playSounds, shieldTilt, reduceByTraction, actionStates, shieldSize} from "physics/actionStateShortcuts";
+import {CSTICK_JUMP_THRESHOLD, PLATFORM_DROP_STICK_THRESHOLD, PLATFORM_DROP_WINDOW} from "physics/meleeCommon";
 import {sounds} from "main/sfx";
 import {characterSelections, player} from "main/main";
+// UCF shield drop (shielddrop.S + shielddrop_extended.cpp); both are
+// no-ops unless the UCF toggle is on.
+import {spotDodgeThresholdY, ucfShieldDrop} from "physics/ucf";
 import {framesData} from "../../../main/characters";
 import {Vec2D} from "../../../main/util/Vec2D";
 export default {
@@ -27,7 +31,7 @@ export default {
   },
   main : function(p,input){
     if (player[p].hit.shieldstun > 0){
-      reduceByTraction(p,false);
+      reduceByTraction(p,true);
       shieldTilt(p,true,input);
     }
     else {
@@ -47,7 +51,7 @@ export default {
           sounds.shieldup.play();
         }
         if (!player[p].inCSS){
-          reduceByTraction(p,false);
+          reduceByTraction(p,true);
           shieldDepletion(p,input);
         }
         shieldTilt(p,false,input);
@@ -58,7 +62,9 @@ export default {
   interrupt : function(p,input){
     if (!player[p].inCSS){
       const j = checkForJump(p, input);
-      if (j[0] || input[p][0].csY > 0.65){
+      // ftCo_800DF644 (ft_0DF1.c:109): an upward c-stick CROSSING of x7F4.
+      // 0.6625, and it is a crossing rather than a level test.
+      if (j[0] || (input[p][0].csY >= CSTICK_JUMP_THRESHOLD && input[p][1].csY < CSTICK_JUMP_THRESHOLD)){
         player[p].phys.shielding = false;
         actionStates[characterSelections[p]].KNEEBEND.init(p,j[1],input);
         return true;
@@ -68,7 +74,7 @@ export default {
         actionStates[characterSelections[p]].GRAB.init(p,input);
         return true;
       }
-      else if ((input[p][0].lsY < -0.7 && input[p][4].lsY > -0.3) || input[p][0].csY < -0.7){
+      else if ((input[p][0].lsY < spotDodgeThresholdY(p, input, player[p].phys.stickTiltTimerX) && input[p][4].lsY > -0.3) || input[p][0].csY < -0.7){
         player[p].phys.shielding = false;
         actionStates[characterSelections[p]].ESCAPEN.init(p,input);
         return true;
@@ -83,7 +89,8 @@ export default {
         actionStates[characterSelections[p]].ESCAPEB.init(p,input);
         return true;
       }
-      else if (player[p].timer > 1 && input[p][0].lsY < -0.65 && input[p][6].lsY > -0.3 && player[p].phys.onSurface[0] === 1){
+      // ftCo_80099F1C (ftCo_Pass.c:28), as in GUARD.js and SQUAT.js.
+      else if (player[p].timer > 1 && (input[p][0].lsY <= -PLATFORM_DROP_STICK_THRESHOLD && player[p].phys.stickTiltTimerY < PLATFORM_DROP_WINDOW || ucfShieldDrop(p, input)) && player[p].phys.onSurface[0] === 1){
         player[p].phys.shielding = false;
         actionStates[characterSelections[p]].PASS.init(p,input);
         return true;

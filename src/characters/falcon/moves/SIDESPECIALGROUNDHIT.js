@@ -4,6 +4,7 @@ import {turnOffHitboxes} from "physics/actionStateShortcuts";
 import { player} from "main/main";
 import {drawVfx} from "main/vfx/drawVfx";
 import {Vec2D} from "../../../main/util/Vec2D";
+import {setGroundVelocity} from "physics/groundMovement";
 
 export default {
   name : "SIDESPECIALGROUNDHIT",
@@ -25,10 +26,10 @@ export default {
     player[p].timer++;
     if (!this.interrupt(p,input)){
       if (player[p].phys.timer < 18) {
-        player[p].phys.cVel.x = 0.30313 * player[p].phys.face;
+        setGroundVelocity(p, 0.30313 * player[p].phys.face);
       }
       else {
-        player[p].phys.cVel.x = 0;
+        setGroundVelocity(p, 0);
       }
       if (player[p].timer === 4){
         player[p].hitboxes.active = [true,false,false,false];

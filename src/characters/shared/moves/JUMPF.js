@@ -1,4 +1,4 @@
-import {checkForSpecials, checkForAerials, checkForDoubleJump, airDrift, fastfall, playSounds, actionStates} from "physics/actionStateShortcuts";
+import {checkForSpecials, checkForAerials, checkForDoubleJump, airDrift, fastfall, playSounds, actionStates, applyJumpVelocity} from "physics/actionStateShortcuts";
 import {characterSelections, player} from "main/main";
 import {sounds} from "main/sfx";
 import {framesData} from 'main/characters';
@@ -14,17 +14,9 @@ export default {
   init : function(p,type,input){
     player[p].actionState = "JUMPF";
     player[p].timer = 0;
-    if (type){
-      player[p].phys.cVel.y += player[p].charAttributes.fHopInitV;
-    }
-    else {
-      player[p].phys.cVel.y += player[p].charAttributes.sHopInitV;
-    }
-
-    player[p].phys.cVel.x = (player[p].phys.cVel.x * player[p].charAttributes.groundToAir) + (input[p][0].lsX * player[p].charAttributes.jumpHinitV);
-    if (Math.abs(player[p].phys.cVel.x) > player[p].charAttributes.jumpHmaxV){
-      player[p].phys.cVel.x = player[p].charAttributes.jumpHmaxV * Math.sign(player[p].phys.cVel.x);
-    }
+    // ftCo_800CB110 (ftCo_Jump.c:102); jump_mul is 1.0 for a normal jump,
+    // as passed by ftCo_Jump_Enter (ftCo_Jump.c:165).
+    applyJumpVelocity(p, !!type, 1.0, input);
 
     player[p].phys.grounded = false;
     sounds.jump2.play();
@@ -51,6 +43,11 @@ export default {
       actionStates[characterSelections[p]].ESCAPEAIR.init(p,input);
       return true;
     }
+      // Runs on the entry frame too -- ftCo_Jump_IASA:187 is reached the same
+      // frame KneeBend_Anim enters JumpF, because Anim and IASA are separate
+      // GObj proc passes (fighter.c:898,900). Holding UP does not double jump
+      // here because applyJumpVelocity stamped stickTiltTimerY expired; a
+      // pressed X still does, which is Melee.
     else if (checkForDoubleJump (p,input) && (!player[p].phys.doubleJumped || (player[p].phys.jumpsUsed < 5 && player[p].charAttributes.multiJump))){
       if (input[p][0].lsX*player[p].phys.face < -0.3){
         actionStates[characterSelections[p]].JUMPAERIALB.init(p,input);

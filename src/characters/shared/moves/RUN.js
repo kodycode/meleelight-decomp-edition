@@ -1,4 +1,5 @@
-import {checkForJump, actionStates} from "physics/actionStateShortcuts";
+import {checkForJump, actionStates, runPhysics} from "physics/actionStateShortcuts";
+import {X58_STICK_THRESHOLD, SPECIAL_STICK_Y_THRESHOLD} from "physics/meleeCommon";
 import {sounds} from "main/sfx";
 import {characterSelections, player} from "main/main";
 import {framesData} from 'main/characters';
@@ -23,14 +24,21 @@ export default {
       if (player[p].timer < 10){
         footstep[1] = true;
       }
-      const tempMax = input[p][0].lsX * player[p].charAttributes.dMaxV;
-
-      //Current Run Acceleration = ((MaxRunVel * Xinput) - PreviousFrameVelocity) * (1/(MaxRunVel * 2.5)) * (DRAA + (DRAB/Math.abs(Xinput)))
-
-      player[p].phys.cVel.x += ((player[p].charAttributes.dMaxV * input[p][0].lsX) - player[p].phys.cVel.x) * (1 / (player[p].charAttributes.dMaxV * 2.5)) * (player[p].charAttributes.dAccA + (player[p].charAttributes.dAccB / Math.abs(input[p][0].lsX)));
-      if (player[p].phys.cVel.x * player[p].phys.face > tempMax * player[p].phys.face){
-        player[p].phys.cVel.x = tempMax;
-      }
+      // ftCo_Run_Phys (ftCo_Run.c:130).
+      //
+      // Replaces a proportional-controller approximation with four problems:
+      //  1. DIVIDE BY ZERO -- `dAccB / Math.abs(lsX)` yields Infinity when the
+      //     stick is centred, poisoning cVel.x to NaN. Melee never divides by
+      //     the stick.
+      //  2. The `1/(dMaxV * 2.5)` gain was invented; the real taper is
+      //     run_accel_taper_gain (0.4, PlCo.dat +0x5C), and it engages ONLY
+      //     when gr_vel/target is strictly between 0 and 1.
+      //  3. Melee's accel is open-loop -- lsX*dash_accel_mul plus a signed
+      //     dash_accel_base -- not proportional to (target - v).
+      //  4. Over-target was a hard snap to tempMax. Melee substitutes friction,
+      //     clamps to land exactly on target, then clamps to
+      //     ground_max_horizontal_velocity, all inside ftCommon_8007C98C.
+      runPhysics(p, input);
 
       const time = ((player[p].phys.cVel.x * player[p].phys.face) / player[p].charAttributes.dMaxV) * player[p].charAttributes.runAnimSpeed;
       if (time > 0){
@@ -48,7 +56,8 @@ export default {
     const j = checkForJump(p, input);
     if (input[p][0].a && !input[p][1].a){
       if (input[p][0].lA > 0 || input[p][0].rA > 0){
-        actionStates[characterSelections[p]].GRAB.init(p,input);
+        // ftCo_800D8A38 (ftCo_Run.c:109) -> ftCo_MS_CatchDash. See DASH.js.
+        actionStates[characterSelections[p]].CATCHDASH.init(p,input);
       }
       else {
         actionStates[characterSelections[p]].ATTACKDASH.init(p,input);
@@ -69,7 +78,8 @@ export default {
       }
       return true;
     }
-    else if (input[p][0].b && !input[p][1].b && input[p][0].lsY < -0.58){
+    // The special-direction gate, x21C (ftCo_Attack100.c:57). 0.55.
+    else if (input[p][0].b && !input[p][1].b && input[p][0].lsY < -SPECIAL_STICK_Y_THRESHOLD){
       actionStates[characterSelections[p]].DOWNSPECIALGROUND.init(p,input);
       return true;
     }
@@ -85,7 +95,9 @@ export default {
       actionStates[characterSelections[p]].APPEAL.init(p,input);
       return true;
     }
-    else if (Math.abs(input[p][0].lsX) < 0.62){
+    // ftCo_RunBrake_CheckInput (ftCo_RunBrake.c:19): `|lstick[0].x| < x58`.
+    // The SAME threshold that enters Run, so the two cannot both be true.
+    else if (Math.abs(input[p][0].lsX) < X58_STICK_THRESHOLD){
       actionStates[characterSelections[p]].RUNBRAKE.init(p,input);
       return true;
     }

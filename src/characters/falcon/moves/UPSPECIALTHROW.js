@@ -9,6 +9,24 @@ export default {
   name: "UPSPECIALTHROW",
   canPassThrough: true,
   canGrabLedge: [true, false],
+  // DO NOT replace this with the raw animation deltas. The y column looks
+  // wrong against the disc -- it sums +2.39 where transNOffset.y sums +29.67
+  // -- and it is not.
+  //
+  // ftCa_SpecialHiThrow0_Phys (ftcaptainspecialhi.c:270) has TWO regimes:
+  //
+  //     if (fp->mv.ca.specialhi.x2_b0) {
+  //         ftCa_SpecialHi_Phys(gobj);
+  //         ftCommon_Fall(da->specialhi_catch_grav, ca->terminal_velocity);
+  //     } else {
+  //         ft_80085134(gobj);                       // pure root motion
+  //     }
+  //
+  // x2_b0 flips when a SET_CMD_VAR subaction event fires (:262). Frames 0-44
+  // below are the root-motion regime and match the disc to five decimals.
+  // From frame 45 the table falls at ~0.317/frame and clamps at -2.9, which
+  // is specialhi_catch_grav against Falcon's terminalV of 2.9000000953674316
+  // -- i.e. exactly ftCommon_Fall, correctly hand-modelled.
   setVelocities: [[0,0],[-0.65273,6.17333],[-0.65273,3.41661],[-0.65273,3.25598],[-0.65273,3.03272],[-0.65273,2.83681],[-0.65273,2.63826],[-0.65273,2.43708],[-0.65273,2.23325],[-0.65273,2.02678],[-0.65273,1.81767],[-0.65273,1.60591],[-0.65273,1.39153],[-0.65273,1.17448],[-0.65273,0.95481],[-0.65273,0.7325],[-0.72509,0.59599],[-0.67937,0.5477],[-0.63528,0.50043],[-0.59311,0.45418],[-0.55256,0.40895],[-0.51373,0.36472],[-0.47661,0.3125],[-0.44122,0.27931],[-0.40755,0.23812],[-0.3756,0.19794],[-0.34537,0.15879],[-0.31686,0.12064],[-0.29007,0.08351],[-0.265,0.04739],[-0.24165,0.01228],[-0.22003,-0.02181],[-0.20012,-0.05488],[-0.18193,-0.08695],[-0.16547,-0.11801],[-0.15071,-0.14804],[-0.13769,-0.17707],[-0.12639,-0.20508],[-0.1168,-0.23207],[-0.10894,-0.25807],[-0.10279,-0.28303],[-0.09896,-0.307],[-0.09616,-0.32994],[-0.09319,-0.35187],[-0.09003,-0.37279],[-0.08668,-0.6927],[-0.08315,-1.01158],[-0.07944,-1.32946],[-0.07555,-1.64633],[-0.07146,-1.96218],[-0.06721,-2.27702],[-0.06276,-2.59084],[-0.05813,-2.9],[-0.05331,-2.9],[-0.04832,-2.9],[-0.04313,-2.9],[-0.03777,-2.9],[-0.03223,-2.9],[-0.02649,-2.9],[-0.02058,-2.9]],
   wallJumpAble: false,
   headBonk: false,
@@ -33,6 +51,11 @@ export default {
   main: function (p, input) {
     player[p].timer++;
     if (!falcon.UPSPECIALTHROW.interrupt(p, input)) {
+      // cVel-channel: self_vel (ftcaptainspecialhi.c -- SpecialHiThrow has no
+      // Phys callback at all, and SpecialHiCatch_Phys at :230 is an empty
+      // function). The state is airborne throughout -- Falcon Dive only grabs
+      // in the air -- so the motion here is animation-driven, which is what
+      // setVelocities holds. Nothing to route through gr_vel.
       player[p].phys.cVel.x = this.setVelocities[player[p].timer-1][0] * player[p].phys.face;
       player[p].phys.cVel.y = this.setVelocities[player[p].timer-1][1];
     }

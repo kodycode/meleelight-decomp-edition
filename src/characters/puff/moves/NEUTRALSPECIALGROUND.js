@@ -4,6 +4,8 @@ import {turnOffHitboxes} from "../../../physics/actionStateShortcuts";
 import puff from "./index";
 import {drawVfx} from "../../../main/vfx/drawVfx";
 import WAIT from "../../shared/moves/WAIT";
+import {getGroundVelocity, setGroundVelocity} from "physics/groundMovement";
+import {f32} from "../../../physics/f32";
 export default {
   name: "NEUTRALSPECIALGROUND",
   canEdgeCancel: true,
@@ -23,7 +25,7 @@ export default {
     player[p].phys.rollOutWallHit = false;
     player[p].phys.rollOutPlayerHitTimer = 0;
     player[p].colourOverlay = "rgba(255, 248, 88, 0.83)";
-    player[p].phys.cVel.x = 0.0001 * player[p].phys.face;
+    setGroundVelocity(p, 0.0001 * player[p].phys.face);
     sounds.rolloutshout.play();
     turnOffHitboxes(p);
     puff.NEUTRALSPECIALGROUND.main(p, input);
@@ -52,7 +54,7 @@ export default {
             });
           }
         }
-        player[p].phys.cVel.x = 0.0001 * player[p].phys.face;
+        setGroundVelocity(p, 0.0001 * player[p].phys.face);
       }
       else {
         player[p].timer++;
@@ -107,12 +109,17 @@ export default {
         if (player[p].phys.rollOutDistance > 100) {
           turnOffHitboxes(p);
           player[p].timer = 46;
-          player[p].phys.cVel.x *= 0.6;
+          // ftPr_SpecialS_8013DA24, grounded branch (ftpurinspecialn.c:211):
+          //     fp->gr_vel *= da->x90;   // 0.6000000238418579, ext_attr+0x90
+          // Confirmed against the disc; the 0.6 here was already right, and is
+          // now the exact float32 rather than the float64 literal.
+          setGroundVelocity(p, f32(getGroundVelocity(p) * 0.6000000238418579));
           player[p].colourOverlayBool = false;
         }
         else {
-          player[p].phys.cVel.x = player[p].phys.rollOutVel * player[p].phys.face;
-          if (input[p][0].lsX * player[p].phys.face < -0.49) {
+          setGroundVelocity(p, player[p].phys.rollOutVel * player[p].phys.face);
+          // ftpurinspecialn.c:751 -- x68 is 0.5, not 0.49.
+          if (input[p][0].lsX * player[p].phys.face < -player[p].charAttributes.rolloutTurnStickThreshold) {
             puff.NEUTRALSPECIALGROUNDTURN.init(p, input);
             player[p].colourOverlayBool = false;
           }
@@ -120,9 +127,9 @@ export default {
       }
       if (player[p].timer >= 46) {
         const sign = Math.sign(player[p].phys.cVel.x);
-        player[p].phys.cVel.x -= 0.09 * sign;
+        setGroundVelocity(p, getGroundVelocity(p) - (0.09 * sign));
         if (player[p].phys.cVel.x * sign < 0) {
-          player[p].phys.cVel.x = 0;
+          setGroundVelocity(p, 0);
         }
       }
     }

@@ -1,4 +1,5 @@
 import {checkForJump, checkForSmashes, checkForTilts, checkForSpecials, reduceByTraction, actionStates} from "physics/actionStateShortcuts";
+import {PLATFORM_DROP_STICK_THRESHOLD, PLATFORM_DROP_WINDOW} from "physics/meleeCommon";
 import {characterSelections, player} from "main/main";
 import {framesData} from 'main/characters';
 export default {
@@ -23,7 +24,11 @@ export default {
     const t = checkForTilts(p, input);
     const s = checkForSmashes(p, input);
     const j = checkForJump(p, input);
-    if (player[p].timer === 4 && (input[p][0].lsY < -0.65 || input[p][1].lsY < -0.65 || input[p][2].lsY < -0.65) && input[p][6].lsY > -0.3 && player[p].phys.onSurface[0] === 1){
+    // ftCo_80099F1C (ftCo_Pass.c:28): `lsY <= -x464 && tiltTimerY < x468
+    // && IsOnPlatform`. 0.66 with a SIX frame window; meleelight used 0.65
+    // with a fixed six-frame lookback, which is the same idea but only
+    // samples one frame of the six.
+    if (player[p].timer === 4 && input[p][0].lsY <= -PLATFORM_DROP_STICK_THRESHOLD && player[p].phys.stickTiltTimerY < PLATFORM_DROP_WINDOW && player[p].phys.onSurface[0] === 1){
       actionStates[characterSelections[p]].PASS.init(p,input);
       return true;
     }

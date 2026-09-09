@@ -1,565 +1,69 @@
-/*eslint-disable*/
-import $ from 'jquery';
-import {nullInputs, nullInput} from "../../input/input";
-import {encodeInput, decodeInput} from "./encode";
-import deepstream from 'deepstream.io-client-js';
-import {
-  setPlayerType,
-  ports,
-  addPlayer,
-  currentPlayers,
-  mType,
-  setMtype,
-  setCurrentPlayer, player
-  , setCS
-  , changeGamemode
-  , setStageSelect
-  , startGame
-  , setTagText
-  , gameMode
-  , stageSelect
-  , matchTimer
-  , characterSelections
-} from "../main";
-import {deepObjectMerge} from "../util/deepCopyObject";
-import {setTokenPosSnapToChar, setChosenChar, setChoosingTag} from "../../menus/css";
-import pako from 'pako';
-import {gameSettings, updateGameSettings} from "../../settings";
-import {updateGameTickDelay} from "../replay";
+// @flow
 
+// NETPLAY IS DISABLED. This module keeps the export surface and does nothing.
+//
+// The real implementation is preserved verbatim in streamclient__disabled.js,
+// which nothing imports -- the same convention mproom__disabled.js already
+// uses here. It is parked rather than deleted so it can be revived if a relay
+// ever comes back.
+//
+// WHY IT IS OFF, in order of how hard it is to undo:
+//
+//   1. BOTH PUBLIC RELAYS ARE GONE. wss://deepml.herokuapp.com and
+//      wss://deepmleur.herokuapp.com both answer HTTP 404 "No such app" from
+//      heroku-router. That is not a sleeping dyno -- a dormant free app
+//      returns 503 "Application error" -- it means the app NAME IS
+//      UNREGISTERED. Which in turn means anyone may claim `deepml` on Heroku
+//      and start receiving every client that picks the US server. The stored
+//      default was 'america', so a fresh install pointed there on its own.
+//      Shipping a dangling reference to a name a stranger can take over is the
+//      single best reason this is off rather than merely broken.
+//
+//   2. LAN MODE CANNOT WORK EITHER. It pointed a client at <ip>:6020, which
+//      needs the `deepstream.io` SERVER listening there. That package was a
+//      devDependency and was dropped in the webpack 5 migration because its
+//      `uws` dependency was unpublished from npm and its repository made
+//      private, so `npm install` fails on it (bin/webpack/createConfig.js:4).
+//      Only `deepstream.io-client-js` is installed. There is no server to run
+//      and no supported way to reinstall one.
+//
+//   3. THE SYNC ITSELF IS UNTESTED against this fork's physics. The frame loop
+//      is now rAF-driven, which stops ticking entirely in a backgrounded tab,
+//      and a great deal of state has changed underneath the serialiser.
+//
+// Everything below is inert on purpose. The names are exported because
+// main.js, css.js, menu.js, stageselect.js, gameplaymenu.js and input.js all
+// import from here, and test/check-stubs.mjs holds this module to its exports.
 
-let ds = null;
-let peerId = null;
-let connectionReady = false;
-let GAME_ID;
-let playerID;
-export let HOST_GAME_ID = null;
-export let inServerMode = false;
-export let meHost = false;
-let joinedGame = false;
-let lastRecievedPacket = 0;
-const usServer = 'wss://deepml.herokuapp.com:443';
-const eurServer = 'wss://deepmleur.herokuapp.com:443';
-let pickedServer = 'america';
-let packetNumber = 0;
+// Never true now; css.js:1183 and gameplaymenu.js:28 branch on these.
+export const HOST_GAME_ID = null;
+export const inServerMode = false;
+export const meHost = false;
 
-$("#america").on("click", function () {
-  localStorage.setItem('pickedServer', 'america');
-  $("#europe").attr('checked', false);
-  $("#localGame").attr('checked', false);
-  ds = deepstream(usServer).login(null, _onLoggedIn);
-  GAME_ID = ds.getUid().replace("-", "");
-  playerID = ds.getUid().replace("-", "");
+// main.js:823 tests `giveInputs[i] === true` before sending; an empty object
+// keeps that false for every slot, so the send path is never entered.
+export const giveInputs/*: any */ = {};
 
-});
+export function logIntoServer()/*: void */ {}
+export function connectToMPServer()/*: void */ {}
 
-$("#europe").on("click", function () {
-  localStorage.setItem('pickedServer', 'europe');
-  $("#america").attr('checked', false);
-  $("#localGame").attr('checked', false);
-  ds = deepstream(eurServer).login(null, _onLoggedIn);
-  GAME_ID = ds.getUid().replace("-", "");
-  playerID = ds.getUid().replace("-", "");
+export function setNetInputFlag(_name/*: any */, _val/*: any */)/*: void */ {}
 
-});
-$("#localGame").on("click", function () {
-  localStorage.setItem('pickedServer', 'lan');
-  $("#america").attr('checked', false);
-  $("#europe").attr('checked', false);
-  ds = deepstream(localStorage.getItem('lastLANIP')+":6020").login(null, _onLoggedIn);
-  GAME_ID = ds.getUid().replace("-", "");
-  playerID = ds.getUid().replace("-", "");
+export function updateNetworkInputs(_inputBuffer/*: any */,
+                                    _playerSlot/*: number */)/*: void */ {}
+export function saveNetworkInputs(_playerSlot/*: number */,
+                                  _inputData/*: any */)/*: void */ {}
 
-});
-$("#lanIP").on("click", function () {
-  var hostIP = prompt("Hosts's IP ADDRESS (enter nothing or localhost to be host):");
-  $("#lanIP").attr("value", hostIP);
-  $("#america").attr('checked', false);
-  $("#europe").attr('checked', false);
-  $("#localGame").attr('checked', true);
-  if (hostIP === null || hostIP === undefined || hostIP === "" || hostIP === "localhost") {
-    localStorage.setItem('lastLANIP', "localhost");
-  }
-  localStorage.setItem('lastLANIP', hostIP);
-  console.log("server set to :" + localStorage.getItem('lastLANIP')+":6020");
-});
-if (localStorage.getItem('pickedServer') === 'america' || localStorage.getItem('pickedServer') === null) {
-  $("#america").attr('checked', true);
-  $("#europe").attr('checked', false);
-  $("#localGame").attr('checked', false);
-  localStorage.setItem('pickedServer', 'america');
-} else if (localStorage.getItem('pickedServer') === 'europe') {
-  $("#europe").attr('checked', true);
-  $("#america").attr('checked', false);
-  $("#localGame").attr('checked', false);
-  localStorage.setItem('pickedServer', 'europe');
-} else {
-  $("#europe").attr('checked', false);
-  $("#america").attr('checked', false);
-  $("#localGame").attr('checked', true);
-  localStorage.setItem('pickedServer', 'lan');
-}
-$("#lanIP").attr('value',localStorage.getItem('lastLANIP'));
-export function logIntoServer() {
-  meHost = true;
-  if (localStorage.getItem('pickedServer') === 'america') {
-    ds = deepstream(usServer).login(null, _onLoggedIn);
-  } else if (localStorage.getItem('pickedServer') === 'europe') {
-    ds = deepstream(eurServer).login(null, _onLoggedIn);
-  } else {
-    if(localStorage.getItem('lastLANIP') === null || localStorage.getItem('lastLANIP') === "" ){
-      localStorage.setItem('lastLANIP', "localhost");
-      $("#lanIP").attr('value',localStorage.getItem('lastLANIP'));
-    }
-    ds = deepstream(localStorage.getItem('lastLANIP')+":6020").login(null, _onLoggedIn);
-  }
-
+// input.js:141 returns this straight out of pollNetworkInputs. Undefined is
+// what the buffer held before any packet arrived, so callers see exactly what
+// they would have seen with a server that never answered.
+export function retrieveNetworkInputs(_playerSlot/*: number */)/*: any */ {
+  return undefined;
 }
 
-function getPlayerStatusRecord(playerID) {
-  return playerStatusRecords[playerID];
-}
-
-const exclusions = ["charAttributes",
-  "charHitboxes",
-  "prevFrameHitboxes"];
-
-function startRoom() {
-  GAME_ID = ds.getUid().replace("-", "");
-  playerID = ds.getUid().replace("-", "");
-  inServerMode = true;
-  ds.on('connectionStateChanged', function (connectionState) {
-    var cssClass;
-
-    if (connectionState === 'ERROR' || connectionState === 'CLOSED') {
-      cssClass = 'red';
-    }
-    else if (connectionState === 'OPEN') {
-      cssClass = 'green';
-    }
-    else {
-      cssClass = 'yellow';
-    }
-//apply this to the front end at some point
-    console.log("connection status : " + cssClass);
-    $("#connstatus").css('background-color', cssClass);
-  });
-
-  ds.record.getRecord(GAME_ID + '-game').whenReady(statusRecord => {
-    //  console.log("set up game status "+ GAME_ID);
-    statusRecord.set(GAME_ID + 'playerStatus/', {
-      "playerID": playerID,
-      "ports": ports,
-      "currentPlayers": currentPlayers,
-      "gameSettings": gameSettings,
-      "characterSelections": characterSelections,
-    });
-    playerStatusRecords[playerID] = statusRecord.get();
-    $('#mpcode').prop("value", GAME_ID);
-
-    let playerPayload = deepObjectMerge(true, {}, player[getPlayerStatusRecord(playerID).ports - 1],exclusions);
-
-    statusRecord.set(GAME_ID + 'player/',
-        {
-          name: playerID,
-          playerSlot: ports - 1,
-          inputBuffer: String.fromCharCode(0,0,32639,32639),
-          playerInfo: playerPayload
- 
-        });
-    //TODO iterate over ports to establish inital group
-
-    ds.event.subscribe(GAME_ID + 'playerStatus/', match => {
-      if (match.playerID === playerID) {
-        return;
-      }
-
-      playerStatusRecords[playerID] = statusRecord;
-      syncHost(match);
-      let totalPlayersRecord = ds.record.getRecord(GAME_ID + 'totalPlayers');
-      totalPlayersRecord.set('totalPlayers', ports);
-      totalPlayersRecord.set('gameMode', gameMode);
-      totalPlayersRecord.set('currentPlayers', currentPlayers);
-      totalPlayersRecord.set('stageSelect', stageSelect);
-      totalPlayersRecord.set('characterSelections', characterSelections);
-      ds.event.emit(GAME_ID + 'totalPlayers', {
-        'totalPlayers': ports,
-        "gameMode": gameMode,
-        "stageSelect": stageSelect,
-        "characterSelections": characterSelections,
-        "currentPlayers": currentPlayers
-      });
-      statusRecord.set(GAME_ID + 'playerStatus/', {
-        "playerID": playerID,
-        "ports": ports,
-        "currentPlayers": currentPlayers,
-        "characterSelections": characterSelections,
-        "gameSettings": gameSettings
-      });
-      HOST_GAME_ID = GAME_ID;
-
-    });
-
-    ds.event.subscribe(GAME_ID + 'player/', answer => {
-
-      const data = JSON.parse(answer.bstring);
-      if (data) {
-        if (data.playerID !== playerID) {
-
-          if (data.inputBuffer && (data.playerSlot !== undefined)) {
-            const now = performance.now();
-            let frameDelay = now - lastRecievedPacket;
-            if (frameDelay > 33) {
-              frameDelay = 33;
-            }
-            lastRecievedPacket = now;
-            updateGameTickDelay(frameDelay);
-            saveNetworkInputs(data.playerSlot, data.inputBuffer);
-             player[data.playerSlot].phys.pos =  data.position;
-
-          }
-        }
-      }
-    });
-
-    ds.event.subscribe(GAME_ID + 'charSelection/', data => {
-      if (data) {
-        setChosenChar(data.playerSlot, data.charSelected);
-      }
-    });
-    ds.event.subscribe(GAME_ID + 'gameMode/', data => {
-      if (data) {
-        changeGamemode(data.gameMode);
-      }
-    });
-    ds.event.subscribe(GAME_ID + 'startGame/', data => {
-      if (data) {
-        setStageSelect(data.stageSelected);
-        ds.record.getRecord(GAME_ID + 'totalPlayers').set('stageSelect', data.stageSelected);
-        $("#pTagEdit" + 0).hide();
-        $("#pTagEdit" + 1).hide();
-        $("#pTagEdit" + 2).hide();
-        $("#pTagEdit" + 3).hide();
-        $("#pTagEdit" + 4).hide();
-        $("#pTagEdit" + 0).blur();
-        $("#pTagEdit" + 1).blur();
-        $("#pTagEdit" + 2).blur();
-        $("#pTagEdit" + 3).blur();
-        $("#pTagEdit" + 4).blur();
-        document.getSelection().removeAllRanges();
-        setChoosingTag(-1);
-        startGame();
-      }
-    });
-    ds.event.subscribe(GAME_ID + 'setTag/', data => {
-      if (data) {
-        setTagText(data.playerSlot, data.tagText);
-      }
-    });
-
-    ds.event.subscribe(GAME_ID + 'getMatchTimer/', data => {
-
-      syncMatchTimer(matchTimer);
-
-    });
-
-  });
-
-
-}
-function _onLoggedIn() {
-  connectionReady = true;
-  startRoom();
-
-  $("#joinServer").on('click', (e) => {
-    meHost = false;
-    var destId = prompt("Host's peer ID:");
-    connectToUser(destId);
-  });
-}
-
-let hostRoom = null;
-
-const connectedPeers = {};
-const peerConnections = {};
-const playerStatusRecords = {};
-
-const playerInputBuffer = [nullInputs(), nullInputs(), nullInputs(), nullInputs()];
-
-
-export const giveInputs = {};
-
-export function setNetInputFlag(name, val) {
-  giveInputs[name] = val;
-}
-
-function sendInputsOverNet(inputBuffer, playerSlot) {
-
-  let payload = {
-    "playerID": playerID,
-    "playerSlot": playerSlot,
-     "inputBuffer": encodeInput(inputBuffer),
-    //"inputBuffer": inputBuffer,
-    "position": player[playerSlot].phys.pos
-
-  };
-  ds.event.emit(HOST_GAME_ID + 'player/', {"bstring": JSON.stringify(payload)});
-
-}
-
-export function updateNetworkInputs(inputBuffer, playerSlot) {
-
-  playerInputBuffer[playerSlot][0] = inputBuffer;
-
-  sendInputsOverNet(inputBuffer, playerSlot);
-
-}
-
-export function saveNetworkInputs(playerSlot, inputData) {
-
-   playerInputBuffer[playerSlot][0] = decodeInput(inputData);
-  //playerInputBuffer[playerSlot][0] = inputData;
-}
-
-export function retrieveNetworkInputs(playerSlot) {
-  return playerInputBuffer[playerSlot][0];
-}
-
-
-//connect to global chat
-export function connectToMPServer() {
-
-  logIntoServer();
-
-
-}
-
-function getHostRoom() {
-  return connectedPeers;
-}
-
-function syncClient(data) {
-  const exactportnumber = data.ports;
-  const charselected = data.characterSelections;
-  let portSnapshot = ports;
-  if (joinedGame === false) {
-    joinedGame = true;
-    let tempCurrentPlayers = deepObjectMerge(true, {}, currentPlayers);
-    let playersToBeReassigned = tempCurrentPlayers.length;
-    let mTypeSnapshot = deepObjectMerge(true, {}, mType);
-    let charSelectedSnapshot = deepObjectMerge(true, {}, characterSelections);
-    //add host players
-    for (let v = ports; v <= exactportnumber - 1; v++) {
-
-      addPlayer(v, 99);
-    }
-    for (let i = 0; i < exactportnumber; i++) {
-      setPlayerType(i, 2);
-      setMtype(i, 99);
-      setCurrentPlayer(i, i);
-      setNetInputFlag(i, false);
-      setCS(i, charselected[i]);
-    }
-    //reassign player 1
-    //TODO figure out how to join wiht multiple in original party
-    addPlayer(tempCurrentPlayers[0], mTypeSnapshot[0]);
-    setNetInputFlag(exactportnumber, true);
-    setCS(exactportnumber, charSelectedSnapshot[0]);
-  } else {
-
-    for (let j = ports; ports < exactportnumber + 1; j++) {
-      addPlayer(j, 99);
-    }
-  }
-
-}
-
-function syncHost(data) {
-
-  //add joining players
-  //TODO Currently assuming only one player joins
-  setCS(data.ports, data.characterSelections[data.ports]);
-  setNetInputFlag(0, true);
-  addPlayer(ports, 99);
-  setNetInputFlag(ports, false);
-
-}
-
-
-function connect(record, name) {
-  // Handle a join connection.
-
-  ds.record.getRecord(name + 'totalPlayers').whenReady(totalPlayerRecord => {
-
-
-
-    const hostStateRecord = totalPlayerRecord.get();
-    if (hostStateRecord.totalPlayers > 3) {
-      alert("Host room is full.");
- 
-
-    } else {
-
-      record.whenReady(data => {
-
-        let result = data.get();
-
-        if (Object.keys(result).length === 0 && result.constructor === Object) {
-          alert("error room appears to be empty");
-        } else if (result.gameMode === 3) {
-          alert("The match is currently in progress. please wait until it has completed");
-        } else if (currentPlayers.length > 1) {
-          alert("Too many players your current session. Only one player may join per browser until I figure out a solution");
-        } else if (result.gameMode === 6) {
-          alert("The host is already in stage select. Please wait until the match has completed or have the host return to character select");
-        } else {
-          let playerstatus = Object.keys(result)[0];
-          playerStatusRecords[name] = record;
-
-          syncClient(result[playerstatus]);
-          meHost = false;
-          updateGameSettings(result[playerstatus].gameSettings);
-
-          ds.event.emit(name + 'playerStatus/', {
-            "playerID": playerID,
-            "ports": ports - 1,
-            "currentPlayers": currentPlayers,
-            "characterSelections": characterSelections
-          });
-          // let playerPayload = deepObjectMerge(true,{}, player[ports],exclusions);
-
-          let payload = {
-            "playerID": playerID,
-            "playerSlot": ports - 1,
-            "inputBuffer": encodeInput(playerInputBuffer[0]),
-            // "inputBuffer": playerInputBuffer[0],
-            "position": player[ports].phys.pos
-          };
-          ds.event.emit(name + 'player/', {"bstring": JSON.stringify(payload)});
-          // ds.event.emit(name + 'charSelection/', {"playerSlot": ports -1, "charSelected": characterSelections[0]});
-
-          ds.event.subscribe(name + 'playerStatus/', match => {
-            if (match.playerID === playerID) {
-              return;
-            }
-
-            syncClient(match);
-
-
-          });
-
-          ds.event.subscribe(name + 'player/', answer => {
-
-            const data = JSON.parse(answer.bstring);
-            if (data) {
-              if (data.playerID !== playerID) {
-                if (data.inputBuffer && (data.playerSlot !== undefined)) {
-                  const now = performance.now();
-                  let frameDelay = now - lastRecievedPacket;
-                  if (frameDelay > 33) {
-                    frameDelay = 33;
-                  }
-                  lastRecievedPacket = now;
-                  updateGameTickDelay(frameDelay);
-                  saveNetworkInputs(data.playerSlot, data.inputBuffer);
-                   player[data.playerSlot].phys.pos =   data.position;
-                }
-              }
-            }
-          });
-          ds.event.subscribe(name + 'charSelection/', data => {
-            if (data) {
-              setChosenChar(data.playerSlot, data.charSelected);
-            }
-          });
-          ds.event.subscribe(name + 'gameMode/', data => {
-            if (data) {
-              if (data.gameMode === 2 || data.gameMode === 3 || data.gameMode === 6) {
-                changeGamemode(data.gameMode);
-              }
-
-            }
-          });
-
-          ds.event.subscribe(name + 'startGame/', data => {
-            if (data) {
-              setStageSelect(data.stageSelected);
-              startGame();
-            }
-          });
-          ds.event.subscribe(name + 'setTag/', data => {
-            if (data) {
-              setTagText(data.playerSlot, data.tagText);
-            }
-          });
-          peerConnections[name] = record;
-
-        }
-      });
-    }
-  });
-}
-
-
-function connectToUser(userName) {
-  const requestedPeer = userName;
-  if (!connectedPeers[requestedPeer]) {
-    HOST_GAME_ID = requestedPeer;
-    let playerRecord = ds.record.getRecord(requestedPeer + '-game').whenReady(statusRecord => {
-      connect(statusRecord, requestedPeer);
-
-    });
-
-
-    peerConnections[requestedPeer] = playerRecord;
-
-  }
-  connectedPeers[requestedPeer] = 1;
-
-}
-
-
-export function syncCharacter(index, charSelection) {
-  if (HOST_GAME_ID !== null) {
-    ds.event.emit(HOST_GAME_ID + 'charSelection/', {"playerSlot": index, "charSelected": charSelection});
-  }
-  if (meHost) {
-    ds.record.getRecord(GAME_ID + '-game').whenReady(statusRecord => {
-      //  console.log("set up game status "+ GAME_ID);
-      statusRecord.set(GAME_ID + 'playerStatus/', {
-        "playerID": playerID,
-        "ports": ports,
-        "currentPlayers": currentPlayers,
-        "gameSettings": gameSettings,
-        "characterSelections": characterSelections
-      });
-    });
-  }
-}
-
-export function syncGameMode(gameMode) {
-  if (HOST_GAME_ID !== null) {
-    ds.event.emit(HOST_GAME_ID + 'gameMode/', {"gameMode": gameMode});
-  }
-}
-
-
-export function syncStartGame(stageSelected) {
-  if (HOST_GAME_ID !== null) {
-    ds.event.emit(HOST_GAME_ID + 'startGame/', {"stageSelected": stageSelected});
-    ds.record.getRecord(HOST_GAME_ID + '-game').set('gameMode', gameMode);
-  }
-}
-
-export function syncTagText(playerSlot, tagText) {
-  if (HOST_GAME_ID !== null) {
-    ds.event.emit(HOST_GAME_ID + 'setTag/', {"playerSlot": playerSlot, "tagText": tagText});
-  }
-}
-export function syncMatchTimer(timer) {
-  if (HOST_GAME_ID !== null) {
-    ds.event.emit(HOST_GAME_ID + 'matchTimer/', {"matchTimer": timer});
-  }
-}
-
-
+// Outbound state sync -- every one of these only ever emitted to the relay.
+export function syncCharacter(_index/*: number */, _charSelection/*: any */)/*: void */ {}
+export function syncGameMode(_gameMode/*: number */)/*: void */ {}
+export function syncStartGame(_stageSelected/*: any */)/*: void */ {}
+export function syncTagText(_playerSlot/*: number */, _tagText/*: any */)/*: void */ {}
+export function syncMatchTimer(_timer/*: any */)/*: void */ {}

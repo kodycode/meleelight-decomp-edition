@@ -2,12 +2,16 @@
 import {player, fg2, playerType, characterSelections, screenShake, percentShake} from "main/main";
 import {rotateVector} from "main/render";
 import {sounds} from "main/sfx";
-import {knockbackSounds, segmentSegmentCollision, getKnockback, getHitstun} from "physics/hitDetection";
+import {knockbackSounds, segmentSegmentCollision, getKnockback, getHitstun, isCrouching} from "physics/hitDetection";
 import {findCollision} from "./environmentalCollision";
 import {moveECB} from "../main/util/ecbTransform";
 import {pickSmallestSweep} from "../main/util/findSmallestWithin";
 import {subtract} from "../main/linAlg";
-import {actionStates} from "physics/actionStateShortcuts";
+import {actionStates, calcShieldstun, calcShieldPushback,
+        shieldAnalogToLightshield, getEnvDmg} from "physics/actionStateShortcuts";
+import {calcHitlag} from "physics/knockback";
+import {moveIdFor, staleDamage, pushStaleMove} from "physics/staling";
+import {setGroundVelocity} from "physics/groundMovement";
 import {drawVfx} from "main/vfx/drawVfx";
 import {activeStage} from "stages/activeStage";
 import {createHitbox} from "../main/util/createHitBox";
@@ -19,6 +23,7 @@ import {chromaticAberration} from "../main/vfx/chromaticAberration";
 import {unmakeColour} from "../main/vfx/makeColour";
 
 import {sweepCircleVsSweepCircle, sweepCircleVsAABB} from "./interpolatedCollision";
+import {hitsHurtCapsules} from "physics/hurtboxCollision";
 /* eslint-disable */
 
 export let aArticles = [];
@@ -45,6 +50,15 @@ export const articles = {
             var obj = {
                 hitList: [],
                 rotate: rotate,
+                // it->xD88_attackID / it->xD8C_attack_instance. An item carries
+                // its OWN copies, taken from the owner when it spawns, and
+                // plStale_UpdateStaleMovesFromItem (plstale.c:70) stales
+                // against those -- not against whatever the owner is doing by
+                // the time the projectile lands. Snapshotting here is the
+                // whole point: a laser fired and then followed up with another
+                // move must still stale as a laser.
+                attackId: moveIdFor(characterSelections[p], player[p].actionState),
+                attackInstance: player[p].phys.attackInstance,
                 destroyOnHit: true,
                 clank: false,
                 timer: 0,
@@ -62,7 +76,11 @@ export const articles = {
             };
             aArticles.push({
               name: "LASER",
-              player:p,
+              player: p,
+              // The direction the article was FIRED in, snapshotted here.
+              // Knockback follows this, not where the article happens to
+              // be when it connects -- see the hit resolution below.
+              face: player[p].phys.face,
               instance:obj
             });
             articles.LASER.main(aArticles.length - 1);
@@ -125,7 +143,13 @@ export const articles = {
         init: function(options) {
             const p = options.p;
             const type = options.type;
-            const isFox = options.isFox || true;
+            // `|| true` here made this ALWAYS true, so Falco's Phantasm was
+            // dealt Fox's Illusion knockback: the caller passes isFox: false
+            // and it was thrown away. The aerial angle is the worst of it --
+            // 80 degrees, forward and up, where the disc says 270, straight
+            // down, which is the entire character of Falco's move. The LASER
+            // article a few lines up already spells this correctly.
+            const isFox = (options.isFox !== undefined) ? options.isFox : true;
             var obj = {
                 hitList: [],
                 destroyOnHit: false,
@@ -152,6 +176,10 @@ export const articles = {
             aArticles.push({
               name: "ILLUSION",
               player: p,
+              // The direction the article was FIRED in, snapshotted here.
+              // Knockback follows this, not where the article happens to
+              // be when it connects -- see the hit resolution below.
+              face: player[p].phys.face,
               instance: obj
             });
             articles.ILLUSION.main(aArticles.length - 1);
@@ -225,14 +253,14 @@ export function articlesHitDetection (){
                            if (diff >= 9){
                            // victim clank
                            // attacker cut through
-                           player[i].hit.hitlag = Math.floor(player[p].hitboxes.id[j].dmg * (1/3) + 3);
+                           player[i].hit.hitlag = calcHitlag(getEnvDmg(player[p].hitboxes.id[j].dmg));
                            turnOffHitboxes(i);
                            actionStates[characterSelections[i]][78].init(i);
                            }
                            else if (diff <= -9){
                            // attacker clank
                            // victim cut through
-                           player[p].hit.hitlag = Math.floor(player[i].hitboxes.id[k].dmg * (1/3) + 3);
+                           player[p].hit.hitlag = calcHitlag(getEnvDmg(player[i].hitboxes.id[k].dmg));
                            attackerClank = true;
                            articleDestroyed = true;
                            turnOffHitboxes(p);
@@ -240,8 +268,8 @@ export function articlesHitDetection (){
                            }
                            else {
                            // both clank
-                           player[i].hit.hitlag = Math.floor(player[p].hitboxes.id[j].dmg * (1/3) + 3);
-                           player[p].hit.hitlag = Math.floor(player[i].hitboxes.id[k].dmg * (1/3) + 3);
+                           player[i].hit.hitlag = calcHitlag(getEnvDmg(player[p].hitboxes.id[j].dmg));
+                           player[p].hit.hitlag = calcHitlag(getEnvDmg(player[i].hitboxes.id[k].dmg));
                            attackerClank = true;
                            articleDestroyed = true;
                            turnOffHitboxes(i);
@@ -365,19 +393,29 @@ export function executeArticleHits (input){
                   pos: aArticles[a].instance.pos,
                   face: 1
                 });
-                player[v].hit.hitlag = Math.floor(damage * (1 / 3) + 3);
-                player[v].hit.shieldstun = ((Math.floor(damage) * ((0.65 * (1 - ((player[v].phys.shieldAnalog - 0.3) / 0.7))) +
-                    0.3)) * 1.5) + 2;
-                var victimPush = ((Math.floor(damage) * ((0.195 * (1 - ((player[v].phys.shieldAnalog - 0.3) / 0.7))) + 0.09)) +
-                    0.4) * 0.6;
-                if (victimPush > 2) {
-                    victimPush = 2;
-                }
-                if (aArticles[a].instance.pos.x < player[v].phys.pos.x) {
-                    player[v].phys.cVel.x = victimPush
-                } else {
-                    player[v].phys.cVel.x = -victimPush
-                }
+                // This was a second, independent copy of the shield formulas
+                // that hitDetection.js already carries -- same float64 literals,
+                // same extra `+ 0.4` constant term that does not reduce to the
+                // decomp's expression, and the same hand-rolled hitlag. Route
+                // it through the shared ported functions instead, so an article
+                // hitting a shield and a hitbox hitting a shield agree.
+                //
+                // ftCommon_CalcHitlag (ftcommon.c:640), ftCo_80092F2C stun and
+                // pushback (ftCo_Guard.c:688).
+                const lightshield =
+                  shieldAnalogToLightshield(player[v].phys.shieldAnalog);
+                player[v].hit.hitlag = calcHitlag(damage);
+                player[v].hit.shieldstun = calcShieldstun(damage, lightshield);
+                const victimPush =
+                  calcShieldPushback(player[v].hit.shieldstun, false);
+
+                // The defender's pushback is gr_vel in the decomp (ftCo_Guard.c
+                // :698), and a shielding fighter is grounded, so it goes through
+                // the grounded channel and picks up the floor-tangent
+                // projection rather than being written straight to cVel.x.
+                setGroundVelocity(v,
+                  aArticles[a].instance.pos.x < player[v].phys.pos.x
+                    ? victimPush : -victimPush);
             }
 
             actionStates[characterSelections[v]].GUARD.init(v,input);
@@ -392,11 +430,20 @@ export function executeArticleHits (input){
                         sounds.vcancel.play();
                     }
                 }
-                player[v].hit.knockback = getKnockback(hb, damage, damage, player[v].percent, player[v].charAttributes.weight,
+                // plStale_UpdateStaleMovesFromItem (plstale.c:70). Projectiles
+                // stale exactly like a direct hit, against the OWNER's table,
+                // using the id and instance the article captured at spawn.
+                const owner = aArticles[a].player;
+                const aId = aArticles[a].instance.attackId;
+                const aInst = aArticles[a].instance.attackInstance;
+                const staled = staleDamage(player[owner].staleTable, aId, damage);
+                pushStaleMove(player[owner].staleTable, aId, aInst);
+
+                player[v].hit.knockback = getKnockback(hb, staled, damage, player[v].percent, player[v].charAttributes.weight,
                     crouching, vCancel);
 
                 player[v].hit.hitPoint = aArticles[a].instance.pos;
-                player[v].percent += damage;
+                player[v].percent += staled;
 
                 switch (hb.type) {
                     case 0:
@@ -440,10 +487,27 @@ export function executeArticleHits (input){
                         }
                     }
 
-                    player[v].hit.hitlag = Math.floor(damage * (1 / 3) + 3);
+                    player[v].hit.hitlag = calcHitlag(damage, {crouching: isCrouching(v)});
 
 
-                    if (aArticles[a].instance.pos.x < player[v].phys.pos.x) {
+                    // WHICH WAY THE ARTICLE IS TRAVELLING, not where it is.
+                    //
+                    // This compared the article's position against the victim's
+                    // and inferred the side from that. A laser moves 5 units a
+                    // frame for Falco and 7 for Fox, so whenever it crossed the
+                    // victim's centre inside a single frame it registered as
+                    // having come from the FAR side and knocked them backwards
+                    // -- into the shot rather than away from it.
+                    //
+                    // The firing direction is fixed when the article spawns and
+                    // cannot drift, which is what makes it the right thing to
+                    // read. The positional test is kept as a fallback for any
+                    // article that does not record a direction.
+                    const aFace = aArticles[a].face;
+                    const fromLeft = (aFace === undefined)
+                      ? aArticles[a].instance.pos.x < player[v].phys.pos.x
+                      : aFace > 0;
+                    if (fromLeft) {
                         player[v].hit.reverse = false;
                         player[v].phys.face = -1;
                     } else {
@@ -599,6 +663,15 @@ export function interpolatedArticleHurtCollision (a,v){
   const h2 = aArticles[a].instance.pos;
   const r  = aArticles[a].instance.hb.size
 
+  // Articles hit the same capsules a fighter's own hitboxes do. They travel in
+  // the play plane, so their depth is 0 -- which is also why a laser can pass
+  // a limb that has swung out of the plane, exactly as it does in the game.
+  const capsuleHit = hitsHurtCapsules(v, {x: h1.x, y: h1.y, z: 0},
+                                         {x: h2.x, y: h2.y, z: 0}, r, 0);
+  if (capsuleHit !== null) {
+    return capsuleHit;
+  }
+
   const collision = sweepCircleVsAABB ( h1, r, h2, r, hurt.min, hurt.max );
 
   if (collision === null) {
@@ -615,6 +688,14 @@ export function articleHurtCollision (a,v,previous){
     } else {
         var hbpos = aArticles[a].instance.pos;
     }
+    const pt = {x: hbpos.x, y: hbpos.y, z: 0};
+    const capsuleHit = hitsHurtCapsules(v, pt, pt,
+                                        aArticles[a].instance.hb.size, 0);
+    if (capsuleHit !== null) {
+      return capsuleHit;
+    }
+
+    // Fallback only. This box is 8 by 18 for every character.
     var hurtCenter = new Vec2D((player[v].phys.hurtbox.min.x + player[v].phys.hurtbox.max.x) / 2, (player[v].phys.hurtbox
             .min.y + player[v].phys.hurtbox.max.y) / 2);
     var distance = new Vec2D(Math.abs(hbpos.x - hurtCenter.x), Math.abs(hbpos.y - hurtCenter.y));

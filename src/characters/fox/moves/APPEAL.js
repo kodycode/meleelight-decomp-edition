@@ -1,6 +1,7 @@
 import WAIT from "characters/shared/moves/WAIT";
 import {player} from "main/main";
 import {sounds} from "main/sfx";
+import {setGroundVelocity} from "physics/groundMovement";
 export default {
   name : "APPEAL",
   canEdgeCancel : false,
@@ -10,17 +11,17 @@ export default {
   init : function(p,input){
     player[p].actionState = "APPEAL";
     player[p].timer = 0;
-    player[p].phys.cVel.x = 0;
+    setGroundVelocity(p, 0);
     this.main(p,input);
   },
   main : function(p,input){
     player[p].timer++;
     if (!this.interrupt(p,input)){
       if (player[p].timer > 1 && player[p].timer < 18) {
-        player[p].phys.cVel.x = this.setVelocities1[player[p].timer-2] * player[p].phys.face;
+        setGroundVelocity(p, this.setVelocities1[player[p].timer-2] * player[p].phys.face);
       }
       else if (player[p].timer > 88) {
-        player[p].phys.cVel.x = this.setVelocities2[player[p].timer-89] * player[p].phys.face;
+        setGroundVelocity(p, this.setVelocities2[player[p].timer-89] * player[p].phys.face);
       }
       if (player[p].timer === 31) {
         sounds.foxtaunt.play();

@@ -3,6 +3,7 @@ import {characterSelections,  player} from "main/main";
 import {sounds} from "main/sfx";
 import {framesData} from 'main/characters';
 import {drawVfx} from "main/vfx/drawVfx";
+import {setGroundVelocity} from "physics/groundMovement";
 export default {
   name : "TECHU",
   canPassThrough : true,
@@ -15,7 +16,7 @@ export default {
     player[p].actionState = "TECHU";
     player[p].timer = 0;
     player[p].phys.cVel.y = 0;
-    player[p].phys.cVel.x = 0;
+    setGroundVelocity(p, 0);
     player[p].phys.kVel.y = 0;
     player[p].phys.kVel.x = 0;
     player[p].phys.fastfalled = false;

@@ -42,7 +42,9 @@ export default {
         sounds.normalswing1.play();
       }
       if (player[p].timer > 16 && player[p].timer < 21){
-        player[p].hitboxes.frames++;
+        player[p].hitboxes.frame++;   // was `frames++`, which is not a field:
+        // the hitbox stayed on offset[0] for this whole phase. 148 other
+        // sites spell it `frame++`; this was one of five that did not.
       }
       if (player[p].timer === 21){
         turnOffHitboxes(p);

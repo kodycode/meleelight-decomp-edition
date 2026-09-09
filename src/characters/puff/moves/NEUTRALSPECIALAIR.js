@@ -2,6 +2,7 @@ import {player} from "../../../main/main";
 import {sounds} from "../../../main/sfx";
 import {turnOffHitboxes, airDrift} from "../../../physics/actionStateShortcuts";
 import puff from "./index";
+import {f32} from "../../../physics/f32";
 import {drawVfx} from "../../../main/vfx/drawVfx";
 import {activeStage} from "../../../stages/activeStage";
 import {Vec2D} from "../../../main/util/Vec2D";
@@ -112,7 +113,19 @@ export default  {
         }
         if (player[p].phys.rollOutDistance > 100 && !player[p].phys.rollOutPlayerHit) {
           player[p].timer = 39;
-          player[p].phys.cVel.x *= 0.6;
+          // ftPr_SpecialS_8013DA24, airborne branch (ftpurinspecialn.c:220):
+          //     fp->self_vel.x *= da->x90;      // 0.6000000238418579
+          //     fp->self_vel.y *= da->x94;      // 0.800000011920929
+          //     fp->xE4_ground_accel_1 = 0;
+          //     fp->gr_vel = 0;
+          // Both multipliers are read from Jigglypuff's ext_attr block; the
+          // 0.6 was already here as a float64 literal, the VERTICAL 0.8 was
+          // missing entirely, so ending Rollout in the air kept full vertical
+          // speed instead of losing a fifth of it.
+          player[p].phys.cVel.x = f32(player[p].phys.cVel.x * 0.6000000238418579);
+          player[p].phys.cVel.y = f32(player[p].phys.cVel.y * 0.800000011920929);
+          player[p].phys.groundAccel1 = 0;
+          player[p].phys.grVel = 0;
           player[p].colourOverlayBool = false;
           turnOffHitboxes(p);
         }

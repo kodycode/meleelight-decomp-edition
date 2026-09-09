@@ -2,7 +2,9 @@ import {checkForSmashTurn, checkForDash, checkForJump, checkForSmashes, checkFor
     reduceByTraction
     , actionStates
 } from "physics/actionStateShortcuts";
+import {SQUAT_RELEASE_STICK_THRESHOLD} from "physics/meleeCommon";
 import {characterSelections, player} from "main/main";
+import {squatWaitThreshold} from "physics/ucf";
 import {framesData} from 'main/characters';
 export default {
   name : "SQUATWAIT",
@@ -26,7 +28,14 @@ export default {
     const t = checkForTilts(p,input);
     const s = checkForSmashes(p,input);
     const j = checkForJump(p,input);
-    if (input[p][0].lsY > -0.61){
+    // ftCo_SquatRv_CheckInput (ftCo_SquatRv.c:34): `lstick[0].y > -x94`.
+    // 0.625 -- the release side of the crouch hysteresis, not the 0.6875
+    // that enters it. See SQUAT_RELEASE_STICK_THRESHOLD.
+    // UCF DBOOC (dbooc.S): lowers this threshold for one frame on a rim
+    // coordinate when the stick is on its way out, so a dashback out of crouch
+    // does not die on the coordinates just under x094. No-op with UCF off.
+    if (input[p][0].lsY > -squatWaitThreshold(p, input,
+            player[p].phys.stickTiltTimerX, SQUAT_RELEASE_STICK_THRESHOLD)){
       actionStates[characterSelections[p]].SQUATRV.init(p,input);
       return true;
     }

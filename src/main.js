@@ -9,27 +9,37 @@ import 'characters/fox/moves';
 import 'characters/fox/moves/UPTILT.js';
 import 'characters/fox/attributes.js';
 import 'characters/fox/ecb.js';
+import 'characters/fox/hurtbox.js';
+import 'characters/fox/rootMotion.js';
 import 'characters/fox/index.js';
 import 'characters/falco';
 import 'characters/falco/moves';
 import 'characters/falco/attributes.js';
 import 'characters/falco/ecb.js';
+import 'characters/falco/hurtbox.js';
+import 'characters/falco/rootMotion.js';
 import 'characters/falco/index.js';
 import 'characters/falcon';
 import 'characters/falcon/moves';
 import 'characters/falcon/attributes.js';
 import 'characters/falcon/ecb.js';
+import 'characters/falcon/hurtbox.js';
+import 'characters/falcon/rootMotion.js';
 import 'characters/falcon/index.js';
 import 'characters/marth';
 import 'characters/marth/moves';
 import 'characters/marth/dancingBladeAirMobility.js';
 import 'characters/marth/dancingBladeCombo.js';
 import 'characters/marth/ecbmarth.js';
+import 'characters/marth/hurtbox.js';
+import 'characters/marth/rootMotion.js';
 import 'characters/marth/index.js';
 import 'characters/marth/marthAttributes.js';
 import 'characters/puff';
 import 'characters/puff/moves';
 import 'characters/puff/ecbpuff.js';
+import 'characters/puff/hurtbox.js';
+import 'characters/puff/rootMotion.js';
 import 'characters/puff/index.js';
 import 'characters/puff/puffAttributes.js';
 import 'characters/puff/puffMultiJumpDrift.js';
@@ -86,3 +96,26 @@ import 'stages/stagerender.js';
 import 'stages/targetselect.js';
 import 'target/targetbuilder.js';
 import 'target/targetplay.js';
+// Debug handle for headless inspection (tools/cdp.mjs drives the page over the
+// Chrome DevTools Protocol and needs a way to reach the module namespaces --
+// the bundle otherwise exposes only `start` and `animations`). This binds
+// existing live namespace objects; it defines no new state and changes no
+// behaviour.
+import * as __mlMain from 'main/main';
+import * as __mlActiveStage from 'stages/activeStage';
+import * as __mlPhysics from 'physics/physics';
+import * as __mlCharacters from 'main/characters';
+import * as __mlStates from 'physics/actionStateShortcuts';
+import * as __mlHurtbox from 'physics/hurtboxCollision';
+import * as __mlUcf from 'physics/ucf';
+import * as __mlHurtboxData from 'main/hurtboxData';
+window.__ml = {
+  main: __mlMain,
+  activeStage: __mlActiveStage,
+  physics: __mlPhysics,
+  characters: __mlCharacters,
+  states: __mlStates,
+  hurtboxCollision: __mlHurtbox,
+  ucf: __mlUcf,
+  hurtboxData: __mlHurtboxData,
+};

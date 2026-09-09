@@ -6,6 +6,17 @@ import {Vec2D} from "../../../main/util/Vec2D";
 import FALL from "../../shared/moves/FALL";
 export default {
   name: "CLIFFJUMPSLOW",
+  // The ledge states drive position by SNAPPING phys.pos from their offset
+  // table every frame, which walks the fighter up the OUTSIDE of the stage
+  // wall. Running ordinary environment collision at the same time sweeps the
+  // ECB from below the lip to above it, hits the wall/ledge corner, and the
+  // resolver pushes the fighter straight back out and down -- getting up off
+  // a ledge dropped you back onto it.
+  //
+  // Melee does not run environment collision here either: the cliff states'
+  // Coll callback is ftCo_CliffCatch_Coll (ftcliffcommon.c:128), a
+  // ledge-specific check, not the ground/wall resolver.
+  ignoreCollision : true,
   offset: [[-71.27, -23.71], [-71.15, -23.55], [-70.96, -23.07], [-70.73, -22.26], [-70.48, -21.16], [-70.21, -19.81], [-69.94, -18.28], [-69.70, -16.60], [-69.45, -14.12], [-69.19, -10.70], [-69.37, -7.08], [-68.97, -3.53], [-68.59, -1.00], [-68.40, 0], [-68.4, 0], [-68.4, 0], [-68.4, 0], [-68.4, 0]],
   canBeGrabbed: true,
   init: function (p, input) {

@@ -3,6 +3,8 @@ import WAIT from "characters/shared/moves/WAIT";
 import FALLSPECIAL from "characters/shared/moves/FALLSPECIAL";
 import FIREFOXBOUNCE from "characters/falco/moves/FIREFOXBOUNCE";
 import {turnOffHitboxes, airDrift, fastfall, reduceByTraction} from "physics/actionStateShortcuts";
+import {sinf, cosf} from "physics/trig";
+import {mul, sub} from "physics/f32";
 import { player} from "main/main";
 import {sounds} from "main/sfx";
 import {drawVfx} from "main/vfx/drawVfx";
@@ -83,13 +85,15 @@ export default {
         }
       }
       else if (player[p].timer >= 4){
-        player[p].phys.cVel.y -= 0.17*Math.sin(player[p].phys.upbAngleMultiplier);
-        player[p].phys.cVel.x -= 0.17*Math.cos(player[p].phys.upbAngleMultiplier);
+        // x78_FOX_FIREFOX_REVERSE_ACCEL, applied along the launch angle.
+        player[p].phys.cVel.y = sub(player[p].phys.cVel.y, mul(player[p].charAttributes.firefoxReverseAccel, sinf(player[p].phys.upbAngleMultiplier)));
+        player[p].phys.cVel.x = sub(player[p].phys.cVel.x, mul(player[p].charAttributes.firefoxReverseAccel, cosf(player[p].phys.upbAngleMultiplier)));
       }
       else if (player[p].timer >= 1){
         player[p].phys.grounded = false;
-        player[p].phys.cVel.y = 4.2*Math.sin(player[p].phys.upbAngleMultiplier);
-        player[p].phys.cVel.x = 4.2*Math.cos(player[p].phys.upbAngleMultiplier);
+        // ftfoxspecialhi.c:525-528, x74_FOX_FIREFOX_SPEED.
+        player[p].phys.cVel.y = mul(player[p].charAttributes.firefoxSpeed, sinf(player[p].phys.upbAngleMultiplier));
+        player[p].phys.cVel.x = mul(player[p].charAttributes.firefoxSpeed, cosf(player[p].phys.upbAngleMultiplier));
       }
       if (player[p].timer > 1 && player[p].timer < 23){
         player[p].hitboxes.frame++;

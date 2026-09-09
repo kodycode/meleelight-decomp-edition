@@ -40,7 +40,9 @@ export default {
         // needs normalswing3
       }
       if (player[p].timer === 7) {
-        player[p].hitboxes.frames++;
+        player[p].hitboxes.frame++;   // was `frames++`, which is not a field:
+        // the hitbox stayed on offset[0] for this whole phase. 148 other
+        // sites spell it `frame++`; this was one of five that did not.
       }
       if (player[p].timer === 8) {
         player[p].hitboxes.id[0] = player[p].charHitboxes.nair2.id0;

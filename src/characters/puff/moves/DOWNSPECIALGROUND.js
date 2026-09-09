@@ -4,6 +4,7 @@ import puff from "./index";
 import {sounds} from "../../../main/sfx";
 import WAIT from "../../shared/moves/WAIT";
 import FALL from "../../shared/moves/FALL";
+import {getGroundVelocity, setGroundVelocity} from "physics/groundMovement";
 export default {
   name: "DOWNSPECIALGROUND",
   canPassThrough: false,
@@ -18,10 +19,10 @@ export default {
     player[p].timer = 0;
     if (player[p].phys.grounded) {
       if (player[p].phys.cVel.x > 0) {
-        player[p].phys.cVel.x -= 0.1;
+        setGroundVelocity(p, getGroundVelocity(p) - (0.1));
       }
       if (player[p].phys.cVel.x < 0) {
-        player[p].phys.cVel.x += 0.1;
+        setGroundVelocity(p, getGroundVelocity(p) + (0.1));
       }
     }
     else {
@@ -42,15 +43,15 @@ export default {
       }
       else {
         if (player[p].phys.cVel.x > 0) {
-          player[p].phys.cVel.x -= player[p].charAttributes.airFriction;
+          setGroundVelocity(p, getGroundVelocity(p) - (player[p].charAttributes.airFriction));
           if (player[p].phys.cVel.x < 0) {
-            player[p].phys.cVel.x = 0;
+            setGroundVelocity(p, 0);
           }
         }
         else if (player[p].phys.cVel.x < 0) {
-          player[p].phys.cVel.x += player[p].charAttributes.airFriction;
+          setGroundVelocity(p, getGroundVelocity(p) + (player[p].charAttributes.airFriction));
           if (player[p].phys.cVel.x > 0) {
-            player[p].phys.cVel.x = 0;
+            setGroundVelocity(p, 0);
           }
         }
         player[p].phys.cVel.y -= player[p].charAttributes.gravity;

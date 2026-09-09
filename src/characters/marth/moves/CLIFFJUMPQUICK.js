@@ -6,6 +6,17 @@ import {airDrift, fastfall} from "../../../physics/actionStateShortcuts";
 import FALL from "../../shared/moves/FALL";
 export default {
   name: "CLIFFJUMPQUICK",
+  // The ledge states drive position by SNAPPING phys.pos from their offset
+  // table every frame, which walks the fighter up the OUTSIDE of the stage
+  // wall. Running ordinary environment collision at the same time sweeps the
+  // ECB from below the lip to above it, hits the wall/ledge corner, and the
+  // resolver pushes the fighter straight back out and down -- getting up off
+  // a ledge dropped you back onto it.
+  //
+  // Melee does not run environment collision here either: the cliff states'
+  // Coll callback is ftCo_CliffCatch_Coll (ftcliffcommon.c:128), a
+  // ledge-specific check, not the ground/wall resolver.
+  ignoreCollision : true,
   offset: [[-70.91, -23.37], [-70.48, -22.70], [-70.03, -21.59], [-69.59, -20.23], [-69.16, -18.77], [-68.76, -17.39], [-68.82, -16.26], [-69.31, -15.57], [-69.00, -13.87], [-68.51, -8.90], [-68.4, -2.95]],
   canBeGrabbed: true,
   init: function (p, input) {

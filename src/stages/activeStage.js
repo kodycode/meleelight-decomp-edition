@@ -16,7 +16,9 @@ import {Vec2D} from "../main/util/Vec2D";
 // if 'connectednessFunction' is not supplied, it is assumed that no grounds/platforms are connected to any other grounds/platforms
 
 
-import {syncStage} from "../main/multiplayer/streamclient";
+// (No `syncStage` import: streamclient does not export one. It was unused
+// here and bound undefined. The stage is synced via syncGameMode /
+// syncCharacter, which streamclient does export.)
 import {deepObjectMerge} from "../main/util/deepCopyObject";
 const stageMapping = {
   0: "battlefield",

@@ -65,3 +65,19 @@ MeleeLight-win32-x64/*
 node_modules/*
 
 \.idea/
+tools/dat/
+
+# ---------------------------------------------------------------------------
+# Game data. NEVER commit anything extracted from a disc.
+#
+# tools/dat/ is the configured extraction target, but a mistyped gcm_extract
+# invocation can drop a full 1.4 GB extraction somewhere else entirely -- a
+# directory literally named "--list" appeared in the repo root that way. These
+# patterns catch the file types wherever they land.
+tools/dat/
+--list/
+*.iso
+*.gcm
+*.dol
+*.dat
+!src/**/*.dat

@@ -5,6 +5,7 @@ import {randomShout, turnOffHitboxes, actionStates} from "physics/actionStateSho
 import {characterSelections, player} from "main/main";
 import {framesData} from 'main/characters';
 import {hitQueue} from 'physics/hitDetection';
+import {setGroundVelocity} from "physics/groundMovement";
 export default {
   name : "THROWFORWARD",
   canEdgeCancel : false,
@@ -25,7 +26,7 @@ export default {
     const prevFrame = player[p].timer;
     player[p].timer+=11/player[p].phys.releaseFrame;
     if (!this.interrupt(p,input)){
-      player[p].phys.cVel.x = this.setVelocities[Math.max(0,Math.floor(player[p].timer+0.01)-1)]*player[p].phys.face;
+      setGroundVelocity(p, this.setVelocities[Math.max(0,Math.floor(player[p].timer+0.01)-1)]*player[p].phys.face);
       if (Math.floor(player[p].timer+0.01) >= 11 && Math.floor(prevFrame+0.01) < 11){
         hitQueue.push([player[p].phys.grabbing,p,0,false,true,false]);
         turnOffHitboxes(p);

@@ -6,6 +6,7 @@ import {tiltTurnDashBuffer, checkForTiltTurn, checkForSmashTurn, checkForDash, c
 } from "physics/actionStateShortcuts";
 import {characterSelections, player} from "main/main";
 import {framesData} from 'main/characters';
+import {setGroundVelocity} from "physics/groundMovement";
 export default {
   name : "OTTOTTO",
   canEdgeCancel : false,
@@ -13,7 +14,7 @@ export default {
   init : function(p,input){
     player[p].actionState = "OTTOTTO";
     player[p].timer = 1;
-    player[p].phys.cVel.x = 0;
+    setGroundVelocity(p, 0);
     actionStates[characterSelections[p]].OTTOTTO.main(p,input);
   },
   main : function(p,input){

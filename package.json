@@ -1,25 +1,22 @@
 {
-  "name": "meleelight",
+  "name": "meleelight-decomp-edition",
   "version": "0.0.1",
-  "description": "Melee Light Platform Fighter",
+  "description": "Melee Light with its physics rebuilt from the Melee decompilation",
   "main": "app.js",
   "scripts": {
-    "build": "webpack --progress --colors --config=bin/webpack/build.config.js",
-    "flow": "flow status src; test $? -eq 0 -o $? -eq 2",
-    "dev": "webpack --progress --colors --watch --config=bin/webpack/dev.config.js",
-    "animations": "webpack --progress --colors --config=bin/webpack/animations.config.js",
-    "release": "node bin/release.js",
+    "build": "webpack --config bin/webpack/build.config.js",
+    "dev": "webpack --watch --config bin/webpack/dev.config.js",
+    "animations": "webpack --config bin/webpack/animations.config.js",
     "serve": "node app",
-    "postinstall": " npm run animations && npm run build ",
-    "rebuild": "./node_modules/.bin/electron-rebuild  -w uws"
+    "start": "npm run animations && npm run build && npm run serve",
+    "test": "node test/check-parse.mjs && node test/check-strip.mjs && node test/check-undefined.mjs && node test/check-frame-tables.mjs && node test/check-music-volume.mjs && node test/check-data-wired.mjs && node test/check-ground-friction.mjs && node test/check-root-motion.mjs && node test/check-hurtbox-alignment.mjs && node test/check-state-durations.mjs && node test/check-hitbox-ids.mjs && node --import ./test/register.mjs test/physics.test.mjs && node --import ./test/register.mjs test/check-stubs.mjs"
   },
   "engines": {
-    "node": "8.9.1",
-    "npm": "5.5.1"
+    "node": ">=18"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/schmooblidon/meleelight.git"
+    "url": "git+https://github.com/kodycode/meleelight-decomp-edition.git"
   },
   "keywords": [
     "melee"
@@ -27,57 +24,27 @@
   "author": "schmooblidon",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/schmooblidon/meleelight/issues"
+    "url": "https://github.com/kodycode/meleelight-decomp-edition/issues"
   },
-  "homepage": "https://github.com/schmooblidon/meleelight#readme",
+  "homepage": "https://github.com/kodycode/meleelight-decomp-edition#readme",
   "dependencies": {
-    "howler": "^2.0.1",
-    "jquery": "1.11.3"
+    "deepstream.io-client-js": "^2.3.4",
+    "express": "^4.21.2",
+    "howler": "^2.2.4",
+    "jquery": "^3.7.1",
+    "localforage": "^1.10.0",
+    "pako": "^1.0.11",
+    "peer": "^1.0.2"
   },
   "devDependencies": {
-    "babel-core": "^6.18.2",
-    "babel-eslint": "^7.1.1",
-    "babel-loader": "^6.2.8",
-    "babel-plugin-transform-class-properties": "^6.24.1",
-    "babel-plugin-transform-flow-strip-types": "^6.18.0",
-    "babel-preset-es2015": "^6.18.0",
-    "babel-preset-stage-0": "^6.16.0",
-    "can": "^3.2.2",
-    "deepstream.io": "^2.1.0",
-    "deepstream.io-client-js": "^2.0.0",
-    "electron": "^1.8.1",
-    "electron-menu": "^1.0.0",
-    "electron-packager": "^10.1.0",
-    "electron-rebuild": "^1.6.0",
-    "electron-spawn": "^5.0.0",
-    "eslint": "^3.11.1",
-    "eslint-config-airbnb": "^13.0.0",
-    "eslint-loader": "^1.6.1",
-    "eslint-plugin-flowtype-errors": "^2.0.1",
-    "eslint-plugin-import": "^2.2.0",
-    "eslint-plugin-jsx-a11y": "^2.2.3",
-    "express": "^4.14.0",
-    "flow-bin": "^0.37.0",
-    "fs-extra": "^1.0.0",
-    "happypack": "^3.0.0",
-    "howler": "^2.0.1",
-    "jquery": "1.11.3",
-    "localforage": "^1.4.3",
-    "optimist": "^0.6.1",
-    "pako": "^1.0.4",
-    "peer": "^0.2.8",
-    "sw-precache-webpack-plugin": "^0.6.3",
-    "webpack": "^1.15.0",
-    "webpack-notifier": "^1.4.1",
-    "yargs": "^6.4.0"
+    "@babel/core": "^7.26.0",
+    "@babel/preset-flow": "^7.25.9",
+    "babel-loader": "^9.2.1",
+    "url": "^0.11.4",
+    "webpack": "^5.97.1",
+    "webpack-cli": "^5.1.4"
   },
-  "babel": {
-    "presets": [
-      "es2015",
-      "stage-0"
-    ],
-    "ignore": [
-      "src/characters/**/*animations.js"
-    ]
+  "overrides": {
+    "qs": "^6.16.0"
   }
 }

@@ -4,6 +4,7 @@ import {tiltTurnDashBuffer, checkForTiltTurn, checkForSmashTurn, checkForDash, c
     , checkForSpecials
     , reduceByTraction
     , actionStates
+    , walkPhysics
 } from "physics/actionStateShortcuts";
 import {sounds} from "main/sfx";
 import {characterSelections, player} from "main/main";
@@ -15,12 +16,14 @@ export default {
   init : function(p,addInitV,input){
     player[p].actionState = "WALK";
     player[p].timer = 1;
-    if (addInitV){
-      const tempInit = player[p].charAttributes.walkInitV * player[p].phys.face;
-      if ((tempInit > 0 && player[p].phys.cVel.x < tempInit) || (tempInit < 0 && player[p].phys.cVel.x > tempInit)){
-        player[p].phys.cVel.x += player[p].charAttributes.walkInitV * player[p].phys.face;
-      }
-    }
+    // REMOVED: meleelight applied a `walkInitV` impulse on entering walk.
+    // Melee does not. ftCo_Walk_Enter (ftCo_Walk.c:54) and
+    // ftWalkCommon_800DFCA4 (ftwalkcommon.c:71) add no velocity impulse at all
+    // -- walk velocity comes entirely from the per-frame accel in
+    // ftWalkCommon_800E0060. `walkInitV` has no ftCo_DatAttrs counterpart; it
+    // is a meleelight invention. The `addInitV` parameter is retained so the
+    // call signature is unchanged for the ~dozen callers.
+    void addInitV;
     actionStates[characterSelections[p]].WALK.main(p,input);
   },
   main : function(p,input){
@@ -33,20 +36,10 @@ export default {
         footstep[1] = true;
       }
 
-      //Current Walk Acceleration = ((MaxWalkVel * Xinput) - PreviousFrameVelocity) * (1/(MaxWalkVel * 2)) * (InitWalkVel * WalkAcc)
-      const tempMax = player[p].charAttributes.walkMaxV * input[p][0].lsX;
-
-      if (Math.abs(player[p].phys.cVel.x) > Math.abs(tempMax)){
-        reduceByTraction(p, true);
-      }
-      else {
-        const tempAcc = (tempMax - player[p].phys.cVel.x) * (1/(player[p].charAttributes.walkMaxV*2)) * (player[p].charAttributes.walkInitV + player[p].charAttributes.walkAcc);
-
-        player[p].phys.cVel.x += tempAcc;
-        if (player[p].phys.cVel.x * player[p].phys.face > tempMax * player[p].phys.face){
-          player[p].phys.cVel.x = tempMax;
-        }
-      }
+      // ftWalkCommon_800E0060 (ftwalkcommon.c:178). Replaces the previous
+      // proportional-controller approximation, whose gain and `*2` were
+      // invented and which applied 2x friction via reduceByTraction(p, true).
+      walkPhysics(p, input);
 
       const time = ((player[p].phys.cVel.x * player[p].phys.face) / player[p].charAttributes.walkMaxV) * player[p].charAttributes.walkAnimSpeed;
       if (time > 0){

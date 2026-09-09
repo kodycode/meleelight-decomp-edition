@@ -1,5 +1,5 @@
 import {vfxQueue,dropFromVfxQueue} from "main/vfx/vfxQueue";
-import {isShowSFX, dVfx} from "main/vfx";
+import {isShowEffectVfx, dVfx} from "main/vfx";
 
 export function renderVfx (otherFrame){
   let altFrame = otherFrame;
@@ -8,7 +8,7 @@ export function renderVfx (otherFrame){
   for (let posInQueue = 0; posInQueue < vfxQueue.length; posInQueue++) {
     vfxQueue[posInQueue].timer++;
     if (vfxQueue[posInQueue].frames >= vfxQueue[posInQueue].timer) {
-      if (isShowSFX() || vfxQueue[posInQueue].name === "start") {
+      if (isShowEffectVfx() || vfxQueue[posInQueue].name === "start") {
         if (!altFrame) {
           dVfx[vfxQueue[posInQueue].name](posInQueue);
         }

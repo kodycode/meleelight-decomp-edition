@@ -6,6 +6,7 @@ import {drawVfx} from "../../../main/vfx/drawVfx";
 import {Vec2D} from "../../../main/util/Vec2D";
 import WAIT from "../../shared/moves/WAIT";
 import FALL from "../../shared/moves/FALL";
+import {setGroundVelocity} from "physics/groundMovement";
 export default  {
   name: "SIDESPECIALGROUND4FORWARD",
   canPassThrough: false,
@@ -29,7 +30,7 @@ export default  {
   main: function (p, input) {
     player[p].timer++;
     if (!marth.SIDESPECIALGROUND4FORWARD.interrupt(p, input)) {
-      player[p].phys.cVel.x = marth.SIDESPECIALGROUND4FORWARD.setVelocities[player[p].timer - 1] * player[p].phys.face;
+      setGroundVelocity(p, marth.SIDESPECIALGROUND4FORWARD.setVelocities[player[p].timer - 1] * player[p].phys.face);
       if (player[p].timer > 21 && player[p].timer < 30) {
         drawVfx({
           name: "swing",

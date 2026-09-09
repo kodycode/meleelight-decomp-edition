@@ -199,18 +199,29 @@
           </div>
           <div id="controllerMessage"><p>You may need to refresh the page or restart your browser. Close the browser from the system tray to be thorough</p></div>
         </div><div class="buttonDetails"><p>Supported Controllers</p></div></div>
-        <a href="https://github.com/schmooblidon/meleelight" target="_blank"><div id="githubButton" class="topButton"><div class="buttonDetails"><p>Fork me on github</p></div></div></a>
+        <a href="https://github.com/kodycode/meleelight-decomp-edition" target="_blank"><div id="githubButton" class="topButton"><div class="buttonDetails"><p>Fork me on github</p></div></div></a>
         <a href="https://discord.gg/qagFayt" target="_blank"><div id="discordButton" class="topButton"><div class="buttonDetails"><p>Join Discord</p></div></div></a>
         <div id="hideButton" class="topButton"><div class="buttonDetails"><p>Toggle Header</p></div></div>
-      <div  class="topButton"> Connection Status <button  id="connstatus" type="text" value="">   </button></div>
-      <div  class="topButton"> Your Multiplayer Code <input  id="mpcode" type="text" value=""></div>
-      <div id="joinServer" class="topButton"> <button >Join Server</button></div>
-      <div id="spectate" class="topButton"> <button >Spectate Game</button></div>
-      <div  class="topButton"> <input type="checkbox" id="america" >US SERVER</input></div>
-      <div  class="topButton"> <input type="checkbox" id="europe" >EUR SERVER</input></div>
+      <!-- NETPLAY CONTROLS DISABLED.
+           Both public relays answer HTTP 404 "No such app" from heroku-router:
+           wss://deepml.herokuapp.com and wss://deepmleur.herokuapp.com. A 404 is
+           not a sleeping dyno (that returns 503) -- the Heroku app names are
+           UNREGISTERED, so anyone could claim them and receive every client that
+           picked "US SERVER", which was the stored default. LAN MODE cannot work
+           either: it needs the deepstream.io SERVER on <ip>:6020 and that package
+           was dropped in the webpack 5 migration (its `uws` dependency was
+           unpublished from npm), so only the client half is installed.
+           The code is parked in src/main/multiplayer/*__disabled.js.
+           "Replays?" and "Load Replay" below are NOT netplay and stay live. -->
+      <!-- <div  class="topButton"> Connection Status <button  id="connstatus" type="text" value="">   </button></div> -->
+      <!-- <div  class="topButton"> Your Multiplayer Code <input  id="mpcode" type="text" value=""></div> -->
+      <!-- <div id="joinServer" class="topButton"> <button >Join Server</button></div> -->
+      <!-- <div id="spectate" class="topButton"> <button >Spectate Game</button></div> -->
+      <!-- <div  class="topButton"> <input type="checkbox" id="america" >US SERVER</input></div> -->
+      <!-- <div  class="topButton"> <input type="checkbox" id="europe" >EUR SERVER</input></div> -->
       <div  class="topButton"> <input type="checkbox" id="replayson" >Replays?</input></div>
-      <div  class="topButton"> <input type="checkbox" id="localGame" >LAN MODE</input></div>
-      <div  class="topButton">ENTER LAN IP HERE<input  id="lanIP" type="text" value=""></div>
+      <!-- <div  class="topButton"> <input type="checkbox" id="localGame" >LAN MODE</input></div> -->
+      <!-- <div  class="topButton">ENTER LAN IP HERE<input  id="lanIP" type="text" value=""></div> -->
       <div  class="topButton">Load Replay <input id="replay" type="file"></div>
         <div id="fullscreenButton" class="topButton"><div class="buttonDetails"><p>Toggle Fullscreen</p></div></div>
       </div>
@@ -231,7 +242,7 @@
       <div id="gamelogicTime"><p>GameLogic: avg: <span id="gamelogicAvg">0</span>ms | high: <span id="gamelogicHigh">0</span>ms | low :<span id="gamelogicLow">0</span>ms | PeakCount: <span id="gamelogicPeak">0</span></p></div>
       <div id="framerate"><p>Framerate: cur: <span id="framerateCurrent">0</span>fps | high : <span id="framerateHigh">0</span>fps | low : <span id="framerateLow">0</span>fps</p></div>
     </div>
-    <div id="buttons"><div id="effectsButton" class="gameButton"><p>VFX <span id="effectsButtonEdit">ON</span></p></div><div id="debugButton" class="gameButton"><p>DEBUG <span id="debugButtonEdit">OFF</span></p></div><div id="fpsButton" class="gameButton"><p><span id="fpsButtonEdit">60</span>fps</p></div><div id="alphaButton" class="gameButton"><p>ALPHA <span id="alphaButtonEdit">ON</span></p></div><div id="layerButton" class="gameButton"><p>LAYERS<span id="layerButtonEdit"></span></p><div id="layerDropdown"><div id="layer1" class="layer layerOn"><p>BG1</p></div><div id="layer2" class="layer layerOn"><p>BG2</p></div><div id="layer3" class="layer layerOn"><p>FG1</p></div><div id="layer4" class="layer layerOn"><p>FG2</p></div><div id="layer5" class="layer layerOn"><p>UI</p></div></div></div></div>
+    <div id="buttons"><div id="effectsButton" class="gameButton"><p>VFX <span id="effectsButtonEdit">ON</span></p></div><div id="stageVfxButton" class="gameButton"><p>STAGE VFX <span id="stageVfxButtonEdit">OFF</span></p></div><div id="hitboxButton" class="gameButton"><p>HITBOX <span id="hitboxButtonEdit">OFF</span></p></div><div id="debugButton" class="gameButton"><p>DEBUG <span id="debugButtonEdit">OFF</span></p></div><div id="fpsButton" class="gameButton"><p><span id="fpsButtonEdit">60</span>fps</p></div><div id="alphaButton" class="gameButton"><p>ALPHA <span id="alphaButtonEdit">ON</span></p></div><div id="ucfButton" class="gameButton"><p>UCF <span id="ucfButtonEdit">OFF</span></p></div><div id="musicButton" class="gameButton"><p>MUSIC <span id="musicButtonEdit">OFF</span></p></div><div id="layerButton" class="gameButton"><p>LAYERS<span id="layerButtonEdit"></span></p><div id="layerDropdown"><div id="layer1" class="layer layerOn"><p>BG1</p></div><div id="layer2" class="layer layerOn"><p>BG2</p></div><div id="layer3" class="layer layerOn"><p>FG1</p></div><div id="layer4" class="layer layerOn"><p>FG2</p></div><div id="layer5" class="layer layerOn"><p>UI</p></div></div></div></div>
   </div>
     <div id="players">
     <div class="playerDetails">
@@ -279,7 +290,16 @@
     window.offlineMode = true;
     (function() {
       if('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('js/service-worker.js');
+        // The service worker was generated by sw-precache-webpack-plugin,
+        // which is deprecated and no longer part of the build -- so this 404s.
+        // Caught so it fails quietly instead of logging an unhandled
+        // rejection. Losing it is no loss while developing: a service worker
+        // caching the bundle is what makes a rebuilt game still show the old
+        // code. Any previously-installed one is unregistered below.
+        navigator.serviceWorker.register('js/service-worker.js').catch(function () {});
+        navigator.serviceWorker.getRegistrations().then(function (rs) {
+          rs.forEach(function (r) { r.unregister(); });
+        }).catch(function () {});
       }
     })();
     var scripts = [

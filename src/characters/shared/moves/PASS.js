@@ -1,6 +1,7 @@
 import {checkForSpecials, checkForAerials, checkForDoubleJump, airDrift, fastfall, actionStates} from "physics/actionStateShortcuts";
 import {characterSelections, player} from "main/main";
 import {framesData} from 'main/characters';
+import {PLATFORM_DROP_VELOCITY} from "physics/meleeCommon";
 export default {
   name : "PASS",
   canPassThrough : true,
@@ -14,7 +15,7 @@ export default {
     player[p].timer = 0;
     player[p].phys.grounded = false;
     player[p].phys.passFastfall = false;
-    player[p].phys.cVel.y = -0.5;
+    player[p].phys.cVel.y = PLATFORM_DROP_VELOCITY;   // x46C, ftCo_Pass.c:83
     player[p].phys.passing = true;
     actionStates[characterSelections[p]].PASS.main(p,input);
   },

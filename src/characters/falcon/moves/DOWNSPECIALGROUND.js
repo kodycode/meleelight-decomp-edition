@@ -8,6 +8,7 @@ import {turnOffHitboxes, reduceByTraction} from "physics/actionStateShortcuts";
 
 import {drawVfx} from "main/vfx/drawVfx";
 import {Vec2D} from "../../../main/util/Vec2D";
+import {setGroundVelocity} from "physics/groundMovement";
 export default {
   name : "DOWNSPECIALGROUND",
   canPassThrough : false,
@@ -22,7 +23,7 @@ export default {
   init : function(p,input){
     player[p].actionState = "DOWNSPECIALGROUND";
     player[p].timer = 0;
-    player[p].phys.cVel.x = 0;
+    setGroundVelocity(p, 0);
     player[p].phys.cVel.y = 0;
     player[p].hitboxes.id[0] = player[p].charHitboxes.falconkickgroundClean.id0;
     player[p].hitboxes.id[1] = player[p].charHitboxes.falconkickgroundClean.id1;
@@ -35,7 +36,7 @@ export default {
     player[p].timer++;
     if (!this.interrupt(p,input)){
       if (player[p].timer >= 12) {
-        player[p].phys.cVel.x = 2.67586 * player[p].phys.face;
+        setGroundVelocity(p, 2.67586 * player[p].phys.face);
         if (player[p].timer%2){
           drawVfx({
             name: "firefoxtail",

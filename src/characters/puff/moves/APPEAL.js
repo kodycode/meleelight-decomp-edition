@@ -1,6 +1,7 @@
 import WAIT from "characters/shared/moves/WAIT";
 import {player} from "main/main";
 import {sounds} from "main/sfx";
+import {setGroundVelocity} from "physics/groundMovement";
 export default {
   name : "APPEAL",
   canEdgeCancel : false,
@@ -8,7 +9,7 @@ export default {
   init : function(p,input){
     player[p].actionState = "APPEAL";
     player[p].timer = 0;
-    player[p].phys.cVel.x = 0;
+    setGroundVelocity(p, 0);
     sounds.pufftaunt.play();
     this.main(p,input);
   },

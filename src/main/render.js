@@ -17,6 +17,9 @@ import {
 } from "main/main";
 import {gameSettings} from "settings";
 import {makeColour} from "main/vfx/makeColour";
+import {isShowHitboxes} from "main/vfx";
+import {hurtCapsulesWorld} from "physics/hurtboxCollision";
+import {modelFace} from "physics/modelFacing";
 import {actionStates} from "physics/actionStateShortcuts";
 import {blendColours} from "main/vfx/blendColours";
 import {activeStage} from "stages/activeStage";
@@ -80,43 +83,44 @@ export function renderPlayer(i) {
     if (frame > framesData[characterSelections[i]][player[i].actionState]) {
         frame = framesData[characterSelections[i]][player[i].actionState];
     }
-    if(animations[characterSelections[i]][player[i].actionState] === undefined){
+    var poses = animations[characterSelections[i]][player[i].actionState];
+    if(poses === undefined || poses.length === 0){
       return;
     }
-    if(animations[characterSelections[i]][player[i].actionState][frame - 1] === undefined){
+    // HOLD THE LAST POSE rather than drawing nothing.
+    //
+    // `frame` above is clamped to framesData, which now carries the animation
+    // lengths read from the disc (validate_frames.py: 173/173 match the
+    // figatree headers). The baked pose data in src/animations was captured
+    // against the OLD, one-frame-short counts, so 47 character/state pairs now
+    // have one more frame of state than they have poses -- SQUAT is 8 frames
+    // against 7 poses, and DASH, ESCAPEF/B/N, DOWNSTANDF/B, DAMAGEN2 and
+    // CLIFFCATCH are all one short too.
+    //
+    // This used to `return` on that frame, which skips the character's draw
+    // entirely: the fighter blinks out for exactly one frame at the end of a
+    // squat, a dash, a roll or a getup. Holding the last available pose is
+    // both visible and very close -- the missing frame is the end of an
+    // animation that has already almost stopped moving.
+    //
+    // It is an approximation, not the real pose. The exact fix is to re-bake
+    // src/animations at the corrected lengths; until then this keeps the
+    // character on screen.
+    if(frame - 1 >= poses.length){
+      frame = poses.length;
+    }
+
+    var model = poses[frame - 1];
+    if(model === undefined){
       return;
     }
 
-    var model = animations[characterSelections[i]][player[i].actionState][frame - 1];
-
-    if (actionStates[characterSelections[i]][player[i].actionState].reverseModel) {
-        face *= -1;
-    } else if (player[i].actionState == "TILTTURN") {
-        if (frame > 5) {
-            face *= -1;
-        }
-    } else if (player[i].actionState == "RUNTURN") {
-        if (frame > player[i].charAttributes.runTurnBreakPoint) {
-            face *= -1;
-        }
-    }
-    // JiGGS MULTIJUMP TURN
-    else if (player[i].actionState.substring(0, player[i].actionState.length - 1) == "AERIALTURN" && player[i].timer >
-        5) {
-        face *= -1;
-    }
-    // MARTH BAIR
-    else if (player[i].actionState == "ATTACKAIRB" && characterSelections[i] == 0) {
-        if (frame > 29) {
-            face *= -1;
-        }
-    }
-    // FOX BTHROW
-    else if (player[i].actionState == "THROWBACK" && (characterSelections[i] == 2 || characterSelections[i] == 3)) {
-        if (frame >= 10) {
-            face *= -1;
-        }
-    }
+    // The model's facing can differ from phys.face for the frames where a
+    // turn animation and the logical flip disagree. That decision now lives in
+    // one place, because the hurtbox capsules are posed from this same
+    // animation and have to mirror the same way -- they were using the raw
+    // phys.face, so a pivot left the hurtbox on the side you came from.
+    face = modelFace(i, frame);
 
     if (!actionStates[characterSelections[i]][player[i].actionState].dead) {
         var col;
@@ -321,11 +325,49 @@ export function renderPlayer(i) {
         fg2.closePath();
         fg2.stroke();
     }
-    if (player[i].showHitbox) {
+    // Either the global HITBOX toggle or the per-player debug shortcut.
+    if (player[i].showHitbox || isShowHitboxes()) {
+        // DRAW THE REAL CAPSULES, not the old bounding rectangle.
+        //
+        // Melee's hurtboxes are capsules riding bones -- a radius and two
+        // bone-local endpoints per capsule, posed every frame -- and this
+        // project already carries them, baked off the disc into
+        // src/characters/<char>/hurtbox.js. hitsHurtCapsules() has been using
+        // them for actual hit detection all along; only this debug view was
+        // still drawing charAttributes.hurtboxOffset as one flat box, which is
+        // why it never matched the character's shape.
+        //
+        // A capsule is exactly a round-capped line of width 2r, so stroking
+        // a -> b with lineCap "round" draws it precisely rather than
+        // approximating with a rectangle plus two circles.
+        //
+        // 19 states have no baked hurtbox data (see gen_hurtbox.py); those
+        // return null and fall back to the old box, which is what the physics
+        // does too.
         fg2.fillStyle = hurtboxColours[player[i].phys.hurtBoxState];
-        fg2.fillRect(player[i].phys.hurtbox.min.x * activeStage.scale + activeStage.offset[0], player[i].phys.hurtbox.min.y * -activeStage.scale +
-            activeStage.offset[1], player[i].charAttributes.hurtboxOffset[0] * 2 * activeStage.scale, player[i].charAttributes.hurtboxOffset[
-                1] * activeStage.scale);
+        fg2.strokeStyle = hurtboxColours[player[i].phys.hurtBoxState];
+        const caps = hurtCapsulesWorld(i);
+        if (caps !== null) {
+            fg2.lineCap = "round";
+            fg2.lineJoin = "round";
+            for (var ci = 0; ci < caps.length; ci++) {
+                const c = caps[ci];
+                fg2.lineWidth = c.r * 2 * activeStage.scale;
+                fg2.beginPath();
+                fg2.moveTo(c.a.x * activeStage.scale + activeStage.offset[0],
+                           c.a.y * -activeStage.scale + activeStage.offset[1]);
+                fg2.lineTo(c.b.x * activeStage.scale + activeStage.offset[0],
+                           c.b.y * -activeStage.scale + activeStage.offset[1]);
+                fg2.stroke();
+            }
+            fg2.lineWidth = 1;
+            fg2.lineCap = "butt";
+        }
+        else {
+            fg2.fillRect(player[i].phys.hurtbox.min.x * activeStage.scale + activeStage.offset[0], player[i].phys.hurtbox.min.y * -activeStage.scale +
+                activeStage.offset[1], player[i].charAttributes.hurtboxOffset[0] * 2 * activeStage.scale, player[i].charAttributes.hurtboxOffset[
+                    1] * activeStage.scale);
+        }
         fg2.fillStyle = makeColour(255, 29, 29, 0.69);
         for (var j = 0; j < 4; j++) {
             switch (j) {

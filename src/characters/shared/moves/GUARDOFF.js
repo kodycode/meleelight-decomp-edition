@@ -23,7 +23,7 @@ export default {
     player[p].timer++;
     playSounds("GUARDOFF",p);
     if (!actionStates[characterSelections[p]].GUARDOFF.interrupt(p,input)){
-      reduceByTraction(p,false);
+      reduceByTraction(p,true);
       //shieldDepletion(p,input);
       //shieldSize(p,null,input);
     }

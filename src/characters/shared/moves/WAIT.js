@@ -19,7 +19,13 @@ export default {
   main : function(p,input){
     player[p].timer += 1;
     if (!actionStates[characterSelections[p]].WAIT.interrupt(p,input)){
-      reduceByTraction(p,false);
+      // TRUE, not false. ftCo_Wait_Phys (ftCo_Wait.c:69) is ft_80084F3C, which
+      // doubles ground_friction whenever |gr_vel| exceeds walk_max_vel
+      // (ft_084E.c:48). Wait is where a fighter sits while STILL SLIDING -- out
+      // of a wavedash, out of a dash, off a knockdown -- so this is the branch
+      // that decides how far every one of those slides carries. It is not the
+      // "standing still" case it reads as.
+      reduceByTraction(p,true);
       if (player[p].timer > framesData[characterSelections[p]].WAIT){
         actionStates[characterSelections[p]].WAIT.init(p,input);
       }

@@ -20,7 +20,8 @@ import pako from "pako";
 import $ from 'jquery';
 import localforage from 'localforage';
 import {aiInputBank, nullInput} from "../input/input";
-import {deepCopy} from "./util/deepCopy";
+// (No `deepCopy` import: util/deepCopy exports deepCopyObject and
+// deepCopyArray. It was unused here and bound undefined.)
 const fullGameState = {};
 fullGameState.inputs = [];
 fullGameState.playerData = [];

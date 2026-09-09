@@ -1,6 +1,9 @@
 import marth from "./index";
 import {player} from "../../../main/main";
 import {turnOffHitboxes, fastfall, airDrift} from "../../../physics/actionStateShortcuts";
+import {setGroundVelocity} from "physics/groundMovement";
+import {sinf, cosf, mtxDegToRad} from "physics/trig";
+import {f32, add, sub, mul, div, neg} from "physics/f32";
 import {sounds} from "../../../main/sfx";
 import {Vec2D} from "../../../main/util/Vec2D";
 import {drawVfx} from "../../../main/vfx/drawVfx";
@@ -10,6 +13,18 @@ export default {
   name: "UPSPECIAL",
   canPassThrough: true,
   canGrabLedge: [true, false],
+  // GROUNDED frames, before he leaves the ground on timer 6.
+  //
+  // ftMs_SpecialHi_Phys's ground branch (ftmarsspecialhi.c:176) is
+  // ft_80084FA8 -> ft_80085030, so gr_vel = transNOffset.z * facing_dir with
+  // NO multiplier -- the x40 scaling of 1.1 that setVelocities below carries
+  // belongs to the aerial branch only (ftmarsspecialhi.c:198-200).
+  //
+  // Dolphin Slash crouches back and pushes forward before launching: +3.20
+  // units net over frames 1-5. None of it was modelled, so the move started
+  // from a standstill. Indexed by timer directly, matching setVelocities
+  // below, which is indexed [timer - 6] against disc frame 6.
+  groundVelocities: [0, -0.44145, -0.44145, 0.8829, 1.9209, 1.28147],
   setVelocities: [[0.75685, 14.41555],
     [0.71450, 15.51062],
     [0.67334, 8.65633],
@@ -53,20 +68,70 @@ export default {
         player[p].phys.canWallJump = true;
       }
       if (player[p].timer < 6) {
-        if (Math.abs(input[p][0].lsX) > 0.7) {
-          player[p].phys.upbAngleMultiplier = -input[p][0].lsX * Math.PI / 16;
+        // ftMs_SpecialHi_IASA (ftmarsspecialhi.c:94-104):
+        //
+        //   if (cmd_vars[0] == 0 && |lsX| > x34) {
+        //     t = x38 * ((|lsX| - x34) / (1.0 - x34));
+        //     t = lsX > 0 ? -deg2rad(t) : deg2rad(t);
+        //     if (|t| > |lstick_angle|) lstick_angle = t;
+        //   }
+        //
+        // The final test is a LATCH: the angle only ever grows in magnitude
+        // within one Dolphin Slash, so easing off the stick after tilting does
+        // not straighten the move back out.
+        const attr = player[p].charAttributes;
+        const lsX = f32(input[p][0].lsX);
+        const mag = Math.abs(lsX);
+        if (mag > attr.dolphinAngleStickThreshold) {
+          const ramp = div(sub(mag, attr.dolphinAngleStickThreshold),
+                           sub(f32(1.0), attr.dolphinAngleStickThreshold));
+          let t = mtxDegToRad(mul(attr.dolphinMaxAngleDeg, ramp));
+          if (lsX > 0) { t = neg(t); }
+          if (Math.abs(t) > Math.abs(player[p].phys.upbAngleMultiplier)) {
+            player[p].phys.upbAngleMultiplier = t;
+          }
         }
+      }
+      if (player[p].timer <= 5) {
+        setGroundVelocity(p, marth.UPSPECIAL.groundVelocities[player[p].timer]
+                             * player[p].phys.face);
       }
       if (player[p].timer === 6) {
         player[p].phys.grounded = false;
-        if (input[p][0].lsX * player[p].phys.face < -0.28) {
-          player[p].phys.face *= -1;
+        // ftmarsspecialhi.c:106-109: `if (|lsX| > x30) ftCommon_UpdateFacing(fp)`,
+        // which sets facing to sign(lsX) outright. x30 is 0.25 -- meleelight
+        // used the 0.28 common deadzone, which is a different constant.
+        const lsXf = input[p][0].lsX;
+        if (Math.abs(lsXf) > player[p].charAttributes.dolphinFacingStickThreshold) {
+          player[p].phys.face = lsXf >= 0 ? 1 : -1;
         }
       }
       if (player[p].timer > 5 && player[p].timer < 23) {
-        player[p].phys.cVel = new Vec2D(marth.UPSPECIAL.setVelocities[player[p].timer - 6][0] * player[p].phys.face * Math.cos(player[p].phys.upbAngleMultiplier) - marth.UPSPECIAL.setVelocities[player[p].timer - 6][1] * Math.sin(player[p].phys.upbAngleMultiplier), marth.UPSPECIAL.setVelocities[player[p].timer - 6][0] * player[p].phys.face * Math.sin(player[p].phys.upbAngleMultiplier) + marth.UPSPECIAL.setVelocities[player[p].timer - 6][1] * Math.cos(player[p].phys.upbAngleMultiplier));
+        // ft_80085154 (ft_084E.c:127) -- rotate the ANIMATION's own translation
+        // delta by lstick_angle:
+        //
+        //   c = cosf(lstick_angle);  s = sinf(lstick_angle);
+        //   fwd = transNOffset.z * facing_dir;  up = transNOffset.y;
+        //   self_vel.x = fwd*c - up*s;
+        //   self_vel.y = fwd*s + up*c;
+        //
+        // setVelocities is meleelight's extraction of (transNOffset.z,
+        // transNOffset.y) per frame, so the shape carries over directly.
+        const sv = marth.UPSPECIAL.setVelocities[player[p].timer - 6];
+        const ang = player[p].phys.upbAngleMultiplier;
+        const c = cosf(ang);
+        const s = sinf(ang);
+        const fwd = mul(sv[0], player[p].phys.face);
+        const up = f32(sv[1]);
+        player[p].phys.cVel = new Vec2D(sub(mul(fwd, c), mul(up, s)),
+                                        add(mul(fwd, s), mul(up, c)));
       }
       else if (player[p].timer > 22) {
+        // cVel-channel: self_vel (ftmarsspecialhi.c:172 ftMs_SpecialAirHi_Phys).
+        // Past frame 22 Dolphin Slash is in its falling tail, which the decomp
+        // runs through ftCommon_Fall + ftCommon_8007D344 -- the airborne
+        // channel. The state cannot be grounded here: frame 6 sets
+        // grounded = false and the move does not land before its own end.
         fastfall(p, input);
         airDrift(p, input);
         if (Math.abs(player[p].phys.cVel.x) > 0.36) {

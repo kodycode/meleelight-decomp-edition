@@ -5,6 +5,8 @@
 
 import {inverseMatrix, multMatVect} from "../main/linAlg";
 import {Vec2D} from "../main/util/Vec2D";
+import {add, sub, mul, div} from "../physics/f32";
+import {sqrtf} from "../physics/gekko";
 
 import type {GamepadInfo, StickCardinals} from "./gamepad/gamepadInfo";
 
@@ -159,30 +161,74 @@ function scaleToGCAxes ( x: number, y: number
 // Melee input rescaling functions
 
 
-// basic mapping from 0 -- 255 back to -1 -- 1 done by Melee
-function axisRescale ( x : number, orig : number = meleeOrig) {
-  return (x-orig) / steps;
-};
+// (The old `axisRescale` helper -- (x - 128) / 80 -- is gone. Melee does not
+// divide before clamping; the division is the LAST step, in HSD_PadScale.)
 
-function unitRetract ( [x : number,y : number] ) : [number, number] {
-  const norm = Math.sqrt(x*x + y*y);
-  if (norm < 1) {
-    return ([x,y]);
-  }
-  else {
-    return ( [x/norm, y/norm]);
-  }
-};
-
+// Still used by the multiplayer encoder to snap a transmitted byte back onto
+// the 1/80 grid. Not part of the Melee pipeline below.
 export function meleeRound (x : number)  : number{
   return Math.round(steps*x)/steps;
 };
 
+// Melee's PadLibData, set in gmmain.c:47-51.
+const CLAMP_STICK_MIN = 0;
+const CLAMP_STICK_MAX = 80;
+const CLAMP_STICK_SHIFT = 1;
+const SCALE_STICK = 80;
+
+// C float -> integer conversion truncates TOWARD ZERO. Assigning to `s8*` in
+// HSD_PadClampCheck3 is exactly this, and it is where Melee and a
+// round-to-nearest implementation part company on the diagonal.
+function toS8 (v : number) : number {
+  return Math.trunc(v);
+}
+
+// Port of HSD_PadClampCheck3 + HSD_PadScale
+// (src/sysdolphin/baselib/controller.c:175 and :294).
+//
+//   r = sqrtf(x*x + y*y);
+//   if (r < min) { x = y = 0; return; }
+//   if (r > max) { x = (x*max)/r; y = (y*max)/r; r = sqrtf(x*x + y*y); }
+//   if (shift == 1 && r > 1.000000013351432e-10f) {
+//       x = x - (x*min)/r;  y = y - (y*min)/r;
+//   }
+//   nml_stickX = (f32)stickX / (f32)scale_stick;
+//
+// x and y arrive as the s8 INTEGERS the controller reports, already centred.
+// With Melee's parameters (min 0, max 80, shift 1, scale 80) the `r < min`
+// branch can never fire and the shift subtracts zero, so the only thing that
+// actually happens is a radial clamp to magnitude 80 -- WITH TRUNCATION.
+//
+// This is where meleelight differed. It divided by 80 first, clamped in floats
+// against a unit circle, then rounded to the nearest 1/80. Melee clamps the
+// integers and truncates. On a full diagonal (raw 80,80):
+//
+//   Melee:       (80*80)/113.137 = 56.5685 -> trunc 56 -> 56/80 = 0.7
+//   meleelight:  round(56.5685)  = 57            -> 57/80 = 0.7125
+//
+// A full step apart, on the coordinate DI and angled tilts use constantly.
+function clampAndScaleStick (x : number, y : number) : [number, number] {
+  let r = sqrtf(add(mul(x, x), mul(y, y)));
+  if (r < CLAMP_STICK_MIN) {
+    return [0, 0];
+  }
+  if (r > CLAMP_STICK_MAX) {
+    x = toS8(div(mul(x, CLAMP_STICK_MAX), r));
+    y = toS8(div(mul(y, CLAMP_STICK_MAX), r));
+    r = sqrtf(add(mul(x, x), mul(y, y)));
+  }
+  if (CLAMP_STICK_SHIFT === 1 && r > 1.000000013351432e-10) {
+    x = toS8(sub(x, div(mul(x, CLAMP_STICK_MIN), r)));
+    y = toS8(sub(y, div(mul(y, CLAMP_STICK_MIN), r)));
+  }
+  return [div(x, SCALE_STICK), div(y, SCALE_STICK)];
+}
+
+// x and y are 0..255 GC byte values. Melee holds them centred as s8 integers
+// in HSD_PadStatus, so recover that before the clamp rather than after.
 function meleeAxesRescale ( [x: number,y: number] ) : [number, number] {
-  const xnew = axisRescale (x, meleeOrig);
-  const ynew = axisRescale (y, meleeOrig);
-  let [xnew2, ynew2] = unitRetract( [xnew, ynew] );
-  return ([xnew2, ynew2].map(meleeRound));
+  return clampAndScaleStick(Math.round(x) - meleeOrig,
+                            Math.round(y) - meleeOrig);
 }
 
 // this is the main input rescaling function

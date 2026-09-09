@@ -11,6 +11,34 @@ import {MusicManager} from "../main/music";
 
 // sounds, music
 export const masterVolume = [0.5,0.3];
+
+// MUSIC MUTE, defaulting to ON (muted).
+//
+// Separate from masterVolume[1] on purpose: muting must not destroy the
+// volume the player chose in Options > Audio, so unmuting restores it rather
+// than guessing a level. Every path that changes music loudness goes through
+// applyMusicVolume() so the mute stays authoritative -- otherwise nudging the
+// music slider in the audio menu would quietly unmute.
+export let musicMuted = true;
+
+// THE ONLY PLACE MUSIC VOLUME IS WRITTEN. `scale` is for temporary ducking
+// (pausing drops the music to 30%); it multiplies the chosen level and is
+// ignored while muted, so a duck-then-restore cannot turn the music back on.
+export function applyMusicVolume (scale) {
+  const s = (scale === undefined) ? 1 : scale;
+  changeVolume(MusicManager, musicMuted ? 0 : masterVolume[1] * s, 1);
+}
+
+export function setMusicMuted (val) {
+  musicMuted = !!val;
+  setCookie("musicMuted", musicMuted ? "1" : "0", 36500);
+  applyMusicVolume();
+  return musicMuted;
+}
+
+export function toggleMusicMuted () {
+  return setMusicMuted(!musicMuted);
+}
 const audioMenuNames = ["Sounds","Music"];
 let audioMenuSelected = 0;
 export function audioMenuControls (i, input){
@@ -115,7 +143,9 @@ export function audioMenuControls (i, input){
     if (audioMenuSelected == 0) {
       changeVolume(sounds, masterVolume[0], 0);
     } else {
-      changeVolume(MusicManager, masterVolume[1], 1);
+      // Through applyMusicVolume, so moving the music slider while muted
+      // changes the level to restore without turning the music back on.
+      applyMusicVolume();
     }
   }
 }
@@ -218,6 +248,12 @@ export function getAudioCookies (){
   const m = getCookie("musicLevel");
   if (m != null && m != undefined && m != "null"){
     masterVolume[1] = Number(m);
-    changeVolume(MusicManager, masterVolume[1], 1);
   }
+  // Muted unless a stored preference says otherwise, so a fresh browser is
+  // silent. Applied last so it wins over the level loaded just above.
+  const mm = getCookie("musicMuted");
+  if (mm != null && mm != undefined && mm != "null" && mm !== ""){
+    musicMuted = (mm === "1" || mm === "true");
+  }
+  applyMusicVolume();
 }

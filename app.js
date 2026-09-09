@@ -3,6 +3,15 @@ var app = express();
 var ExpressPeerServer = require('peer').ExpressPeerServer;
 app.use(express.static('./dist'));
 
+// dist/meleelight.html pulls the gamepad SVG helper with
+// <script src="../src/input/gamepad/includeGamepadSVG.js">, which works when
+// the page is opened straight off disk but not over HTTP, where only ./dist
+// is mounted: the request fell through to the SPA-ish 404 page, the browser
+// refused it for a bad MIME type, and every includeGamepadSVG(...) call in the
+// page threw ReferenceError, leaving the controller diagrams blank.
+// Mounting ./src at /src is what that relative path already expects.
+app.use('/src', express.static('./src'));
+
 app.get('/', function(req, res) {
   res.redirect('/meleelight.html');
 });
@@ -19,7 +28,14 @@ var options = {
 
 app.use('/peerjs', ExpressPeerServer(server, options));
 
-server.listen(9000);
+// REMOVED: `server.listen(9000)`.
+//
+// `app.listen(...)` above already returns a LISTENING server, so calling
+// listen on it a second time is invalid. Old Node tolerated it silently;
+// modern Node throws ERR_SERVER_ALREADY_LISTEN and the process dies before
+// serving anything. Nothing is lost by dropping it: the peer server is
+// mounted on `server` at /peerjs, so it is reachable on the same port the
+// game is served from.
 
 
 var connected = [];

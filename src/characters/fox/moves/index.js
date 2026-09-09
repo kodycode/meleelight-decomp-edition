@@ -49,6 +49,7 @@ import CLIFFATTACKSLOW from "characters/fox/moves/CLIFFATTACKSLOW";
 import CLIFFATTACKQUICK from "characters/fox/moves/CLIFFATTACKQUICK";
 import DOWNATTACK from "characters/fox/moves/DOWNATTACK";
 import GRAB from "characters/fox/moves/GRAB";
+import CATCHDASH from 'characters/fox/moves/CATCHDASH';
 import CATCHATTACK from "characters/fox/moves/CATCHATTACK";
 import THROWNFALCOUP from "characters/fox/moves/THROWNFALCOUP";
 import THROWNFALCODOWN from "characters/fox/moves/THROWNFALCODOWN";
@@ -112,6 +113,7 @@ export default {
   CLIFFATTACKQUICK,
   DOWNATTACK,
   GRAB,
+  CATCHDASH,
   CATCHATTACK,
   THROWNFALCOUP,
   THROWNFALCODOWN,

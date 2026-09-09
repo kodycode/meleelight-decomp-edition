@@ -2,6 +2,7 @@ import {reduceByTraction, actionStates} from "physics/actionStateShortcuts";
 import {characterSelections, player} from "main/main";
 
 import {framesData} from 'main/characters';
+import {setGroundVelocity} from "physics/groundMovement";
 export default {
   name : "CATCHCUT",
   canEdgeCancel : false,
@@ -12,7 +13,7 @@ export default {
     player[p].actionState = "CATCHCUT";
     player[p].timer = 0;
     player[p].phys.grabbing = -1;
-    player[p].phys.cVel.x = -1*player[p].phys.face;
+    setGroundVelocity(p, -1*player[p].phys.face);
     actionStates[characterSelections[p]].CATCHCUT.main(p,input);
   },
   main : function(p,input){

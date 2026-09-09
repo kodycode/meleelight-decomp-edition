@@ -23,6 +23,7 @@ import DOWNTILT from 'characters/marth/moves/DOWNTILT';
 import FORWARDSMASH from 'characters/marth/moves/FORWARDSMASH';
 import FORWARDTILT from 'characters/marth/moves/FORWARDTILT';
 import GRAB from 'characters/marth/moves/GRAB';
+import CATCHDASH from 'characters/marth/moves/CATCHDASH';
 import JAB1 from 'characters/marth/moves/JAB1';
 import JAB2 from 'characters/marth/moves/JAB2';
 import NEUTRALSPECIALAIR from 'characters/marth/moves/NEUTRALSPECIALAIR';
@@ -101,6 +102,7 @@ export default {
   FORWARDSMASH,
   FORWARDTILT,
   GRAB,
+  CATCHDASH,
   JAB1,
   JAB2,
   NEUTRALSPECIALAIR,

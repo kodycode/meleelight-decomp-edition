@@ -5,6 +5,7 @@ import {hitQueue} from 'physics/hitDetection';
 import {framesData} from "../../../main/characters";
 import WAIT from "../../shared/moves/WAIT";
 import CATCHCUT from "../../shared/moves/CATCHCUT";
+import {setGroundVelocity} from "physics/groundMovement";
 export default  {
   name: "THROWBACK",
   canEdgeCancel: false,
@@ -30,7 +31,7 @@ export default  {
     player[p].timer += (22 / player[p].phys.releaseFrame);
     if (!puff.THROWBACK.interrupt(p, input)) {
       if (Math.floor(player[p].timer + 0.01) > 13 && Math.floor(player[p].timer + 0.01 < 37)) {
-        player[p].phys.cVel.x = puff.THROWBACK.setVelocities[Math.floor(player[p].timer + 0.01) - 14] * player[p].phys.face;
+        setGroundVelocity(p, puff.THROWBACK.setVelocities[Math.floor(player[p].timer + 0.01) - 14] * player[p].phys.face);
       }
       if (Math.floor(player[p].timer + 0.01) >= 22 && prevFrame < 22) {
         if (player[p].phys.grabbing === -1) return;

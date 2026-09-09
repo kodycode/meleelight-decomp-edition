@@ -7,6 +7,7 @@ import {sounds} from "main/sfx";
 import {turnOffHitboxes} from "physics/actionStateShortcuts";
 import { player} from "main/main";
 import {drawVfx} from "main/vfx/drawVfx";
+import {getGroundVelocity, setGroundVelocity} from "physics/groundMovement";
 
 export default {
   name : "SIDESPECIALGROUND",
@@ -21,7 +22,7 @@ export default {
   init : function(p,input){
     player[p].actionState = "SIDESPECIALGROUND";
     player[p].timer = 0;
-    player[p].phys.cVel.x = 0;
+    setGroundVelocity(p, 0);
     player[p].phys.landingMultiplier = 1.5;
     drawVfx({
       name: "dashDust",
@@ -41,7 +42,7 @@ export default {
             p: p,
             type: 1
           });
-          player[p].phys.cVel.x = 18.72*player[p].phys.face;
+          setGroundVelocity(p, 18.72*player[p].phys.face);
           if ((input[p][0].b || input[p][1].b) && !input[p][2].b){
             player[p].timer = 24;
           }
@@ -52,12 +53,12 @@ export default {
           }
         }
         if (player[p].timer === 24){
-          player[p].phys.cVel.x = 2.1*player[p].phys.face;
+          setGroundVelocity(p, 2.1*player[p].phys.face);
         }
         if (player[p].timer > 24){
-          player[p].phys.cVel.x -= 0.1*player[p].phys.face;
+          setGroundVelocity(p, getGroundVelocity(p) - (0.1*player[p].phys.face));
           if (player[p].phys.cVel.x*player[p].phys.face < 0){
-            player[p].phys.cVel.x = 0;
+            setGroundVelocity(p, 0);
           }
         }
 

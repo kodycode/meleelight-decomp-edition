@@ -23,9 +23,11 @@ export function NearestEnemy(cpu,p){
     }
   }
   if (nearestEnemy == -1) {
+    // Fail-safe so the AI does not crash when every other fighter is dead,
+    // respawning, or otherwise not a valid target. This runs every frame for
+    // every CPU while that is true, so it does NOT log -- it used to, and a
+    // single knocked-out opponent filled the console with thousands of lines.
     nearestEnemy = 0;
-    console.log("cant find nearest enemy");
-    // fail safe so it doesnt crash at least
   }
   return nearestEnemy;
 }

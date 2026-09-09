@@ -1,5 +1,7 @@
 import {checkForSpecials, checkForAerials, checkForDoubleJump, airDrift, fastfall, actionStates, turnOffHitboxes} from "physics/actionStateShortcuts";
 import {characterSelections, player} from "main/main";
+import {TUMBLE_WIGGLE_STICK_THRESHOLD, TUMBLE_WIGGLE_WINDOW} from "physics/meleeCommon";
+import {ucfTumble} from "physics/ucf";
 
 import {framesData} from 'main/characters';
 export default {
@@ -48,7 +50,18 @@ export default {
       actionStates[characterSelections[p]][b[1]].init(p,input);
       return true;
     }
-    else if ((input[p][0].lsX > 0.7 && input[p][1].lsX < 0.7) || (input[p][0].lsX < -0.7 && input[p][1].lsX > -0.7) || (input[p][0].lsY > 0.7 && input[p][1].lsY < 0.7) || (input[p][0].lsY < -0.7 && input[p][1].lsY > -0.7)){
+    // ftCo_DamageFall_IASA (ftCo_DamageFall.c:124). What was here tested a
+    // rising edge past 0.7 on BOTH axes against the previous frame. Melee uses
+    // the stick tilt timer, the 0.8 threshold, and the X AXIS ONLY -- flicking
+    // up or down has never escaped tumble. The window is a single frame
+    // (x214 = 1), so the timer must be exactly 0.
+    // The second clause is UCF (tumble.cpp), off unless the toggle is on: it
+    // rescues the frame right after vanilla's single-frame window when the
+    // flick was genuine.
+    else if ((Math.abs(input[p][0].lsX) >= TUMBLE_WIGGLE_STICK_THRESHOLD
+              && player[p].phys.stickTiltTimerX < TUMBLE_WIGGLE_WINDOW)
+             || ucfTumble(p, input, player[p].phys.stickTiltTimerX,
+                          TUMBLE_WIGGLE_STICK_THRESHOLD)){
       actionStates[characterSelections[p]].FALL.init(p,input);
       return true;
     }

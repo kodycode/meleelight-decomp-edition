@@ -1,6 +1,8 @@
 
 import UPSPECIALLAUNCH from "characters/falco/moves/UPSPECIALLAUNCH";
 import {reduceByTraction, turnOffHitboxes} from "physics/actionStateShortcuts";
+import {atan2f, HALF_PI} from "physics/trig";
+import {f32, add, sub} from "physics/f32";
 import { player} from "main/main";
 import {sounds} from "main/sfx";
 import {drawVfx} from "main/vfx/drawVfx";
@@ -56,7 +58,22 @@ export default {
       }
 
       if (player[p].timer === 42){
-        let firefoxAngle = (input[p][0].lsX === 0 && input[p][0].lsY === 0) ? Math.PI/2 : Math.atan2(input[p][0].lsY, input[p][0].lsX);
+        // ftFox_SpecialHi_Enter (ftfoxspecialhi.c:496-513) -- Falco runs the
+        // same code as Fox, only the attribute values differ. See the Fox copy
+        // of this file for why the angle stays in world space.
+        const lsX = f32(input[p][0].lsX);
+        const lsY = f32(input[p][0].lsY);
+        const attr = player[p].charAttributes;
+        let firefoxAngle;
+        if (add(Math.abs(lsY), Math.abs(lsX)) >= attr.firefoxStickRangeMin) {
+          if (Math.abs(lsX) > attr.firefoxFacingStickRangeMin) {
+            player[p].phys.face = lsX >= 0 ? 1 : -1;
+          }
+          firefoxAngle = atan2f(lsY, lsX);
+        }
+        else {
+          firefoxAngle = HALF_PI;
+        }
 
         if (player[p].phys.grounded && player[p].phys.onSurface[0] === 0) {
           if (firefoxAngle < -Math.PI/2) {
@@ -78,7 +95,10 @@ export default {
         player[p].phys.upbAngleMultiplier = firefoxAngle;
       }
       else if (player[p].timer >= 16 && !player[p].phys.grounded){
-        player[p].phys.cVel.y -= 0.015;
+        // x60_FOX_FIREFOX_FALL_ACCEL. Falco's is 0.016, not Fox's 0.015 --
+        // this line had been copied across from Fox.
+        player[p].phys.cVel.y = sub(player[p].phys.cVel.y,
+                                    player[p].charAttributes.firefoxFallAccel);
       }
     }
   },

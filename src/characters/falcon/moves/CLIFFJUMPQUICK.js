@@ -7,6 +7,17 @@ import {activeStage} from "stages/activeStage";
 
 export default {
   name : "CLIFFJUMPQUICK",
+  // The ledge states drive position by SNAPPING phys.pos from their offset
+  // table every frame, which walks the fighter up the OUTSIDE of the stage
+  // wall. Running ordinary environment collision at the same time sweeps the
+  // ECB from below the lip to above it, hits the wall/ledge corner, and the
+  // resolver pushes the fighter straight back out and down -- getting up off
+  // a ledge dropped you back onto it.
+  //
+  // Melee does not run environment collision here either: the cliff states'
+  // Coll callback is ftCo_CliffCatch_Coll (ftcliffcommon.c:128), a
+  // ledge-specific check, not the ground/wall resolver.
+  ignoreCollision : true,
   offset : [[-70.52496,-21.46018],[-70.16484,-19.69693],[-69.78724,-17.85424],[-69.40706,-15.97989],[-69.23444,-14.12162],[-69.18485,-12.32722],[-69.25816,-10.64442],[-69.20927,-9.74988],[-68.71929,-8.59644],[-68.73582,-5.89918],[-68.6923,-2.71084]],
   canBeGrabbed : true,
   init : function(p,input){
@@ -39,7 +50,20 @@ export default {
     }
   },
   interrupt : function(p,input){
-    if (player[p].timer > 42){
+    // 43, not 42. Melee ends BOTH ledge-jump phases on "the animation ran
+    // out" -- ftCo_CliffJump1_Anim and ftCo_CliffJump2_Anim are each just
+    // `if (!ftAnim_IsFramesRemaining(gobj))` (ftCo_CliffJump.c:44, 89) -- and
+    // that is one code path shared by every character, so the relationship
+    // between the animation length and the last frame CANNOT differ between
+    // them. CliffJumpQuick1+2 totals 45 for Falcon; every other character ends
+    // this state at total - 2, and Falcon's own CLIFFJUMPSLOW does too
+    // (55 -> 53). Only his quick jump was at total - 3.
+    //
+    // The absolute offset of 2 is meleelight's own and is NOT verified against
+    // Melee: ftAnim_IsFramesRemaining bottoms out in HSD's per-joint animation
+    // runtime (lb_8000B074), so the decomp does not settle the off-by-one. The
+    // UNIFORMITY is what Melee guarantees, and that is what this restores.
+    if (player[p].timer > 43){
       player[p].phys.onLedge = -1;
       player[p].phys.ledgeRegrabCount = false;
       FALL.init(p,input);

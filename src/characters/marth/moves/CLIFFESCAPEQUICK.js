@@ -5,6 +5,17 @@ import {Vec2D} from "../../../main/util/Vec2D";
 import WAIT from "../../shared/moves/WAIT";
 export default {
   name: "CLIFFESCAPEQUICK",
+  // The ledge states drive position by SNAPPING phys.pos from their offset
+  // table every frame, which walks the fighter up the OUTSIDE of the stage
+  // wall. Running ordinary environment collision at the same time sweeps the
+  // ECB from below the lip to above it, hits the wall/ledge corner, and the
+  // resolver pushes the fighter straight back out and down -- getting up off
+  // a ledge dropped you back onto it.
+  //
+  // Melee does not run environment collision here either: the cliff states'
+  // Coll callback is ftCo_CliffCatch_Coll (ftcliffcommon.c:128), a
+  // ledge-specific check, not the ground/wall resolver.
+  ignoreCollision : true,
   offset: [[-70.31, -23.71], [-71.33, -23.71], [-71.36, -23.71], [-71.40, -23.71], [-71.43, -23.71], [-71.44, -23.71], [-71.42, -23.71], [-71.37, -23.71], [-71.28, -23.71], [-71.13, -22.69], [-70.93, -19.99], [-70.69, -16.19], [-70.40, -11.83], [-70.04, -7.48], [-69.69, -3.68], [-69.05, -1.01], [-67.74, 0]],
   setVelocities: [4.23, 4.22, 4.21, 1.74, 1.67, 1.61, 1.56, 1.51, 1.47, 1.44, 1.41, 1.39, 1.37, 1.36, 1.36, 1.36, 1.37, 0.14, 0.22, 0.42, 0.62, 0.68, 0.63, 0.49, 0.34, 0.27, 0.21, 0.17, 0.14, 0.13, 0.13],
   canBeGrabbed: true,

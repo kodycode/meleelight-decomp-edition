@@ -7,6 +7,17 @@ import {sounds} from "../../../main/sfx";
 import WAIT from "../../shared/moves/WAIT";
 export default {
   name: "CLIFFATTACKSLOW",
+  // The ledge states drive position by SNAPPING phys.pos from their offset
+  // table every frame, which walks the fighter up the OUTSIDE of the stage
+  // wall. Running ordinary environment collision at the same time sweeps the
+  // ECB from below the lip to above it, hits the wall/ledge corner, and the
+  // resolver pushes the fighter straight back out and down -- getting up off
+  // a ledge dropped you back onto it.
+  //
+  // Melee does not run environment collision here either: the cliff states'
+  // Coll callback is ftCo_CliffCatch_Coll (ftcliffcommon.c:128), a
+  // ledge-specific check, not the ground/wall resolver.
+  ignoreCollision : true,
   offset: [[-73.10, -9.44], [-73.10, -9.56], [-73.10, -9.71], [-73.09, -9.87], [-73.09, -10.01], [-73.09, -10.12], [-73.09, -10.19], [-73.09, -10.23], [-73.09, -10.24], [-73.09, -10.21], [-73.09, -10.14], [-73.09, -10.04], [-73.09, -9.94], [-73.09, -9.89], [-73.09, -9.87], [-73.09, -9.87], [-73.09, -9.87], [-73.09, -9.63], [-73.09, -9.04], [-73.09, -8.28], [-73.09, -7.52], [-73.09, -6.76], [-73.09, -5.93], [-73.09, -5.07], [-73.09, -4.23], [-72.76, -3.35], [-71.98, -2.44], [-71.05, -1.60], [-70.28, -0.94], [-69.72, -0.50], [-69.22, -0.21], [-68.78, -0.05], [-68.02, 0]],
   setVelocities: [0.34, 0.34, 0.35, 0.38, 0.43, 0.50, 0.59, 0.69, 1.86, 2.03, 1.09, 1.02, 0.85, 0.58, 0.22, -0.07, -0.20, -0.31, -0.40, -0.47, -0.53, -0.57, -0.59, -0.59, -0.58, -0.55, -0.50, -0.43, -0.35, -0.25, -0.16, -0.09, -0.03, 0.002, 0.02, 0.03],
   canBeGrabbed: true,

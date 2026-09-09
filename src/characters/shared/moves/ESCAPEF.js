@@ -2,6 +2,7 @@ import {sounds} from "main/sfx";
 import {executeIntangibility, playSounds, actionStates} from "physics/actionStateShortcuts";
 import {characterSelections, player} from "main/main";
 import {framesData} from 'main/characters';
+import {setGroundVelocity} from "physics/groundMovement";
 export default {
   name : "ESCAPEF",
   setVelocities : [],
@@ -17,7 +18,7 @@ export default {
     player[p].timer++;
     playSounds("ESCAPEF",p);
     if (!actionStates[characterSelections[p]].ESCAPEF.interrupt(p,input)){
-      player[p].phys.cVel.x = actionStates[characterSelections[p]].ESCAPEF.setVelocities[player[p].timer-1]*player[p].phys.face;
+      setGroundVelocity(p, actionStates[characterSelections[p]].ESCAPEF.setVelocities[player[p].timer-1]*player[p].phys.face);
       executeIntangibility("ESCAPEF",p);
       if (player[p].timer === 4){
         sounds.roll.play();
@@ -26,7 +27,7 @@ export default {
   },
   interrupt : function(p,input){
     if (player[p].timer > framesData[characterSelections[p]].ESCAPEF){
-      player[p].phys.cVel.x = 0;
+      setGroundVelocity(p, 0);
       player[p].phys.face *= -1;
       actionStates[characterSelections[p]].WAIT.init(p,input);
       return true;

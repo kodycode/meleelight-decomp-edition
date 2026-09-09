@@ -75,7 +75,20 @@ window.resizeHeader = function() {
   }
   $("#main").css("min-height", windheight - 105 + "px");
 }
-let showHeader = true;
+// A GLOBAL, not a module-local `let`, because main.js writes it bare from two
+// places -- `showHeader = false` during start()'s embedded-mode setup
+// (main.js:1520) and `showHeader ^= true` in the #hideButton handler
+// (main.js:1663). resize.js exports nothing and main.js does not import it
+// (resize.js already imports main/main, so an import back would be circular),
+// so as a module-local `let` those two writes referred to a name that did not
+// resolve at all: ES modules are strict mode, where assigning to an undeclared
+// identifier throws ReferenceError -- clicking "hide header" was a crash. Even
+// without the throw the two would have been separate bindings and the layout
+// would not have followed.
+//
+// This matches how the rest of this file already publishes itself
+// (window.resize, window.mobile), and gives one binding everyone shares.
+window.showHeader = true;
 if (typeof offlineMode !== "undefined") {
   if (offlineMode) {
     // showHeader = false;

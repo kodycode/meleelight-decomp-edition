@@ -5,7 +5,13 @@ export default {
   name : "SQUATRV",
   canEdgeCancel : true,
   canBeGrabbed : true,
-  crouch : true,
+  // NOT crouch. The `crouch` flag drives crouch-cancel, and Melee gates that on
+  // `motion_id == ftCo_MS_Squat || motion_id == ftCo_MS_SquatWait`
+  // (ftCo_Damage.c:124-131), matched by the hitlag test
+  // `(unsigned)msid - ftCo_MS_Squat <= 1` (ftcommon.c:643). The enum runs
+  // Squat, SquatWait, SquatRv -- so SquatRv, the STAND-UP animation, is
+  // excluded from both. meleelight had it flagged, which handed out
+  // crouch-cancel for the whole rise out of a crouch.
   disableTeeter : true,
   init : function(p,input){
     player[p].actionState = "SQUATRV";

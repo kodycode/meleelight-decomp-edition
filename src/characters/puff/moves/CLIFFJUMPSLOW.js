@@ -6,6 +6,17 @@ import {airDrift, fastfall} from "../../../physics/actionStateShortcuts";
 import FALL from "../../shared/moves/FALL";
 export default {
   name: "CLIFFJUMPSLOW",
+  // The ledge states drive position by SNAPPING phys.pos from their offset
+  // table every frame, which walks the fighter up the OUTSIDE of the stage
+  // wall. Running ordinary environment collision at the same time sweeps the
+  // ECB from below the lip to above it, hits the wall/ledge corner, and the
+  // resolver pushes the fighter straight back out and down -- getting up off
+  // a ledge dropped you back onto it.
+  //
+  // Melee does not run environment collision here either: the cliff states'
+  // Coll callback is ftCo_CliffCatch_Coll (ftcliffcommon.c:128), a
+  // ledge-specific check, not the ground/wall resolver.
+  ignoreCollision : true,
   offset: [[-73.10, -9.01], [-73.10, -8.03], [-73.09, -6.73], [-73.09, -5.37], [-73.09, -4.23], [-72.76, -3.29], [-71.98, -2.38], [-71.05, -1.58], [-70.28, -0.94], [-69.66, -0.50], [-69.05, -0.21], [-68.59, -0.05], [-68.4, 0], [-68.4, 0], [-68.4, 0], [-68.4, 0], [-68.4, 0]],
   canBeGrabbed: true,
   init: function (p, input) {
@@ -38,7 +49,9 @@ export default {
     }
   },
   interrupt: function (p, input) {
-    if (player[p].timer > 38) {
+    // CliffJumpSlow1+2 is 49 for Puff; 38 is her CLIFFJUMPQUICK value (total 40),
+      // copied across. Nine frames short.
+    if (player[p].timer > 47) {
       player[p].phys.onLedge = -1;
       player[p].phys.ledgeRegrabCount = false;
       FALL.init(p, input);

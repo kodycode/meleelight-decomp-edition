@@ -7,8 +7,8 @@ import {setTargetPointerPos} from "../stages/targetselect";
 import {setEditingStage, setTargetBuilder} from "target/targetbuilder";
 import {twoPi} from "main/render";
 
-import {connectToMPServer} from "../main/multiplayer/streamclient";
-import {connectAsSpectator} from "../main/multiplayer/spectatorclient";
+// NETPLAY DISABLED: import {connectToMPServer} from "../main/multiplayer/streamclient";
+// NETPLAY DISABLED: import {connectAsSpectator} from "../main/multiplayer/spectatorclient";
 
 import {MusicManager} from "../main/music";
 import {runCalibration} from "../input/gamepad/gamepadCalibration";
@@ -28,7 +28,12 @@ const menuExplanation = [
   ["One box this screen.", "Ranked Mode", "Hostless Muliplayer", "Hosted Multiplayer"],
   ["Customize & calibrate controller.", "Customize keyboard controls."]
 ];
-const menuCount = [4, 4, 4,2];
+// MPMENU is 1 entry, not 4. Spectate / P2P / Server are disabled -- both
+// public relays answer 404 "No such app" (the Heroku names are
+// unregistered, so claimable by anyone) and LAN needs a deepstream.io
+// SERVER that is no longer installable. See multiplayer/streamclient.js.
+// The labels below are left in place so the indices still line up.
+const menuCount = [4, 4, 1,2];
 const menuTitle = ["Main Menu", "Options", "Battle Mode", "Controls"];
 let menuColourOffset = 0;
 const menuColours = [238, 358, 117, 55];
@@ -104,25 +109,29 @@ export function menuMove(i, input) {
       if (menuSelected == LOCALVS) {
         changeGamemode(2);
         positionPlayersInCSS();
-      } else {
-        if (menuSelected == SPECTATING) {
-          connectAsSpectator();
-          changeGamemode(2);
-          positionPlayersInCSS();
-        } else {
-          if (menuSelected == P2PMP) {
-            //  connectToMPRoom();
-            // changeGamemode(2);
-            // positionPlayersInCSS();
-          } else {
-            if (menuSelected == SERVERMP) {
-              connectToMPServer();
-              changeGamemode(2);
-              positionPlayersInCSS();
-            }
-          }
-        }
       }
+      // NETPLAY DISABLED -- menuCount[MPMENU] is 1, so none of these are
+      // reachable any more. Kept commented rather than deleted alongside
+      // multiplayer/streamclient__disabled.js.
+      // else {
+      //   if (menuSelected == SPECTATING) {
+      //     connectAsSpectator();
+      //     changeGamemode(2);
+      //     positionPlayersInCSS();
+      //   } else {
+      //     if (menuSelected == P2PMP) {
+      //       //  connectToMPRoom();
+      //       // changeGamemode(2);
+      //       // positionPlayersInCSS();
+      //     } else {
+      //       if (menuSelected == SERVERMP) {
+      //         connectToMPServer();
+      //         changeGamemode(2);
+      //         positionPlayersInCSS();
+      //       }
+      //     }
+      //   }
+      // }
     } else if (menuMode === SECONDLEVELOPTIONS) {
 
       if (menuSelected == AUDIOOPTIONS) {

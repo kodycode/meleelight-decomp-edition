@@ -6,6 +6,8 @@ import {blendColours} from "../../../main/vfx/blendColours";
 import {drawVfx} from "../../../main/vfx/drawVfx";
 import {Vec2D} from "../../../main/util/Vec2D";
 import WAIT from "../../shared/moves/WAIT";
+import {setGroundVelocity, getGroundVelocity} from "physics/groundMovement";
+import {f32, mul, sub, div} from "physics/f32";
 export default {
   name: "NEUTRALSPECIALGROUND",
   canPassThrough: false,
@@ -18,7 +20,11 @@ export default {
     player[p].phys.shieldBreakerChargeAttempt = true;
     player[p].phys.shieldBreakerCharging = false;
     player[p].colourOverlayBool = false;
-    player[p].phys.cVel.x *= 0.8;
+    // ftMs_SpecialN_Enter (ftmarsspecialn.c:36): `gr_vel /= specialn_friction`.
+    // A DIVISION by 1.25, which is the 0.8 multiply meleelight had -- the value
+    // was right, the provenance was missing. Kept as the divide Melee does.
+    setGroundVelocity(p, div(getGroundVelocity(p),
+                             player[p].charAttributes.specialNFriction));
     turnOffHitboxes(p);
     player[p].hitboxes.id[0] = player[p].charHitboxes.neutralspecialground.id0;
     player[p].hitboxes.id[1] = player[p].charHitboxes.neutralspecialground.id1;
@@ -70,11 +76,13 @@ export default {
 
     if (!marth.NEUTRALSPECIALGROUND.interrupt(p, input)) {
       if (player[p].timer < 12) {
-        const sign = Math.sign(player[p].phys.cVel.x);
-        player[p].phys.cVel.x -= 0.02 * sign;
-        if (player[p].phys.cVel.x * sign < 0) {
-          player[p].phys.cVel.x = 0;
-        }
+        // Grounded decay on the along-ground scalar. 0.02 is
+        // specialn_start_friction (MarsAttributes +0x10) -- again the right
+        // number without a source until now.
+        const grv = getGroundVelocity(p);
+        const sign = Math.sign(grv);
+        const decayed = sub(grv, mul(player[p].charAttributes.specialNStartFriction, sign));
+        setGroundVelocity(p, decayed * sign < 0 ? 0 : decayed);
       }
       else {
         reduceByTraction(p);

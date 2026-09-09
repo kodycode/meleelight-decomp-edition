@@ -66,6 +66,7 @@ import CLIFFATTACKSLOW from "characters/falco/moves/CLIFFATTACKSLOW";
 import CLIFFATTACKQUICK from "characters/falco/moves/CLIFFATTACKQUICK";
 import DOWNATTACK from "characters/falco/moves/DOWNATTACK";
 import GRAB from "characters/falco/moves/GRAB";
+import CATCHDASH from 'characters/falco/moves/CATCHDASH';
 import CATCHATTACK from "characters/falco/moves/CATCHATTACK";
 import APPEAL from "characters/falco/moves/APPEAL";
 
@@ -137,6 +138,7 @@ export default {
   CLIFFATTACKQUICK,
   DOWNATTACK,
   GRAB,
+  CATCHDASH,
   CATCHATTACK,
   APPEAL
 };

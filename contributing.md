@@ -1,3 +1,18 @@
+> **This is a fork.** MeleeLight Decomp Edition rebuilds Melee Light's physics
+> from the [Melee decompilation](https://github.com/doldecomp/melee). Most of
+> this document is inherited from upstream Melee Light and still points there —
+> which is correct for anything about the base game, and wrong for anything
+> this fork changed.
+>
+> - Bugs in behaviour **this fork changed** (physics, hurtboxes, the tools, the
+>   test suite): open an issue on
+>   [kodycode/meleelight-decomp-edition](https://github.com/kodycode/meleelight-decomp-edition/issues).
+> - Bugs present in **base Melee Light** as well: report them upstream at
+>   [schmooblidon/meleelight](https://github.com/schmooblidon/meleelight/issues)
+>   so everyone benefits — the Discord links below are theirs, not ours.
+> - The changelog in [README.md](README.md) lists what differs, which is the
+>   quickest way to tell the two apart.
+
 # Contributing to Melee Light
 
 :+1::tada: First off, thanks for taking interest in the project! :tada::+1:

@@ -5,6 +5,7 @@ import {
   checkForSmashTurn
   , checkForTiltTurn
   , tiltTurnDashBuffer
+  , applyRootMotion
 } from "../../../physics/actionStateShortcuts";
 import {drawVfx} from "../../../main/vfx/drawVfx";
 import {Vec2D} from "../../../main/util/Vec2D";
@@ -15,6 +16,7 @@ import DASH from "../../shared/moves/DASH";
 import SMASHTURN from "../../shared/moves/SMASHTURN";
 import TILTTURN from "../../shared/moves/TILTTURN";
 import WALK from "../../shared/moves/WALK";
+import {setGroundVelocity} from "physics/groundMovement";
 export default  {
   name: "ATTACKDASH",
   canEdgeCancel: false,
@@ -33,7 +35,15 @@ export default  {
   main: function (p, input) {
     player[p].timer++;
     if (!marth.ATTACKDASH.interrupt(p, input)) {
-      player[p].phys.cVel.x = marth.ATTACKDASH.setVelocities[player[p].timer - 1] * player[p].phys.face;
+      // gr_vel = x6A4_transNOffset.z * facing_dir, straight off the disc
+      // (ft_084E.c:83, via ftCo_AttackDash_Phys -> ft_80085030).
+      //
+      // This also fixes a one-frame lead. Melee CLEARS transNOffset on state
+      // entry (fighter.c:1277), so the fighter does not move on the entry
+      // frame; the hand table's first entry was the SECOND frame's delta, so
+      // every frame of travel arrived one early. The generated table carries
+      // the leading zero and rootVel indexes it as Melee does.
+      applyRootMotion(p, "ATTACKDASH");
 
       if (player[p].timer > 9 && player[p].timer < 21) {
         drawVfx({
@@ -67,7 +77,7 @@ export default  {
     }
     else if (player[p].timer < 5 && (input[p][0].lA > 0 || input[p][0].rA > 0)) {
       if (player[p].phys.cVel.x * player[p].phys.face > player[p].charAttributes.dMaxV) {
-        player[p].phys.cVel.x = player[p].charAttributes.dMaxV * player[p].phys.face;
+        setGroundVelocity(p, player[p].charAttributes.dMaxV * player[p].phys.face);
       }
       marth.GRAB.init(p, input);
       return true;

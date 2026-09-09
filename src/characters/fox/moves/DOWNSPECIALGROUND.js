@@ -9,6 +9,7 @@ import {turnOffHitboxes, reduceByTraction, checkForJump} from "physics/actionSta
 
 import {drawVfx} from "main/vfx/drawVfx";
 import {Vec2D} from "../../../main/util/Vec2D";
+import {PLATFORM_DROP_VELOCITY} from "physics/meleeCommon";
 export default {
   name : "DOWNSPECIALGROUND",
   canPassThrough : false,
@@ -46,7 +47,7 @@ export default {
         if (input[p][0].lsY < -0.66 && input[p][6].lsY >= 0){
           player[p].phys.grounded = false;
           player[p].phys.passing = true;
-          player[p].phys.cVel.y = -0.5;
+          player[p].phys.cVel.y = PLATFORM_DROP_VELOCITY;   // x46C, ftCo_Pass.c:83
         }
       }
       if (player[p].phys.grounded){

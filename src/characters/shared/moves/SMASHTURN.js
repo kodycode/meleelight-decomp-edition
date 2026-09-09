@@ -1,4 +1,5 @@
 import {checkForJump, checkForSmashes, checkForTilts, reduceByTraction, actionStates} from "physics/actionStateShortcuts";
+import {DASH_SMASH_STICK_THRESHOLD} from "physics/meleeCommon";
 import {characterSelections, player} from "main/main";
 export default {
   name : "SMASHTURN",
@@ -55,8 +56,32 @@ export default {
       actionStates[characterSelections[p]].APPEAL.init(p,input);
       return true;
     }
-    else if (player[p].timer === 2 && input[p][0].lsX * player[p].phys.face > 0.79){
-      actionStates[characterSelections[p]].DASH.init(p,input);
+    // ftCo_Turn_IASA's dash-out (ftCo_Turn.c:129):
+    //
+    //   if (turn.just_turned && turn.x8)
+    //       if (lstick[0].x * turn.facing_after >= dash_smash_stick_threshold)
+    //           ftCo_Dash_Enter(gobj, 0);
+    //
+    // NOTE WHAT IS NOT THERE: any stick-recency term. Melee asks only that the
+    // stick is HELD past 0.8 in the new direction on the frame the turn lands.
+    //
+    // This used checkForDash, which also demands
+    // `stickTiltTimerX < DASH_SMASH_WINDOW` -- a fresh flick. That belongs to
+    // ftCo_Dash_CheckInput, not here. By the time a smash turn lands, the
+    // stick has usually been held for two frames or more, so the timer had
+    // already run past the window and the dash-out silently failed, leaving
+    // the fighter in SMASHTURN for its full 11 frames. That is the pivot
+    // "stumping": it depended on exactly when the flick landed, so it worked
+    // sometimes and stalled others.
+    //
+    // `turn.x8` is what separates the two turns. Turn_Enter_Smash sets it to
+    // the old facing_dir (non-zero, so this test always passes), while
+    // Turn_Enter_Basic sets it to 0 -- which is why a STANDING turn does still
+    // need the flick, through fn_800C9C2C. TILTTURN keeps checkForDash for
+    // that reason.
+    else if (player[p].timer === 2
+             && input[p][0].lsX * player[p].phys.face >= DASH_SMASH_STICK_THRESHOLD){
+      actionStates[characterSelections[p]].DASH.init(p,input,true);
       return true;
     }
     else if (player[p].timer > 11){

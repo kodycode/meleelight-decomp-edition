@@ -11,9 +11,9 @@ import {player} from "main/main";
 import {turnOffHitboxes, checkForSpecials, checkForTilts, checkForSmashes, checkForJump, checkForDash,
     checkForSmashTurn
     , checkForTiltTurn
-    , tiltTurnDashBuffer
-} from "physics/actionStateShortcuts";
+    , tiltTurnDashBuffer, applyRootMotion} from "physics/actionStateShortcuts";
 import {sounds} from "main/sfx";
+import {setGroundVelocity} from "physics/groundMovement";
 
 export default {
   name : "ATTACKDASH",
@@ -30,7 +30,11 @@ export default {
   main : function(p,input){
     player[p].timer++;
     if (!this.interrupt(p,input)){
-      player[p].phys.cVel.x = this.setVelocities[player[p].timer-1]*player[p].phys.face;
+      // gr_vel = x6A4_transNOffset.z * facing_dir, straight off the disc
+      // (ft_084E.c:83, via ftCo_AttackDash_Phys -> ft_80085030). The hand
+      // tables were copied between characters: Falco's used Fox's and fell
+      // 5.6 units short, and Falcon's was two flat constants.
+      applyRootMotion(p, "ATTACKDASH");
 
       if (player[p].timer === 4){
         player[p].hitboxes.active = [true,false,false,false];
@@ -57,7 +61,7 @@ export default {
     }
     else if (player[p].timer < 5 && (input[p][0].lA > 0 || input[p][0].rA > 0)){
       if (player[p].phys.cVel.x*player[p].phys.face > player[p].charAttributes.dMaxV){
-        player[p].phys.cVel.x = player[p].charAttributes.dMaxV*player[p].phys.face;
+        setGroundVelocity(p, player[p].charAttributes.dMaxV*player[p].phys.face);
       }
       GRAB.init(p,input);
       return true;

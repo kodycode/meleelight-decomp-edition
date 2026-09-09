@@ -15,6 +15,7 @@ import {tiltTurnDashBuffer, checkForSmashTurn, checkForDash, checkForJump, check
 } from "physics/actionStateShortcuts";
 import {player} from "main/main";
 
+import {setGroundVelocity} from "physics/groundMovement";
 export default {
   name : "JAB3",
   setVelocities : [0,0.00024,0.00024,-0.00047,3.76443,3.40589,0.00972,0.00748,0.00538,0.00342,0.0016,-0.0007,-0.0016,-0.00299,-0.00423,-0.00533,-0.00629,-0.0071,0.00051,0.00051,0.0005,0.0005,0.00051,0.00051,0.0005,0.0005,0.0005,0.00051,0.0005,0.0005,0.0005,0.00051],
@@ -32,7 +33,7 @@ export default {
   main : function(p,input){
     player[p].timer++;
     if (!this.interrupt(p,input)){
-      player[p].phys.cVel.x = this.setVelocities[player[p].timer-1] * player[p].phys.face;
+      setGroundVelocity(p, this.setVelocities[player[p].timer-1] * player[p].phys.face);
       if (player[p].timer === 6){
         player[p].hitboxes.active = [true,true,false,false];
         player[p].hitboxes.frame = 0;

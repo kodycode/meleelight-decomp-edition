@@ -6,6 +6,7 @@ import {turnOffHitboxes} from "physics/actionStateShortcuts";
 import { player} from "main/main";
 import {drawVfx} from "main/vfx/drawVfx";
 import SIDESPECIALGROUNDHIT from "characters/falcon/moves/SIDESPECIALGROUNDHIT";
+import {setGroundVelocity} from "physics/groundMovement";
 
 export default {
   name : "SIDESPECIALGROUND",
@@ -23,7 +24,7 @@ export default {
   init : function(p,input){
     player[p].actionState = "SIDESPECIALGROUND";
     player[p].timer = 0;
-    player[p].phys.cVel.x = 0;
+    setGroundVelocity(p, 0);
     player[p].phys.landingMultiplier = 1.5;
     player[p].phys.raptorBoost = false;
     player[p].hitboxes.id[0] = player[p].charHitboxes.raptorboostground.id0;
@@ -38,14 +39,14 @@ export default {
     player[p].timer++;
     if (!this.interrupt(p,input)){
       if (player[p].timer <= 4) {
-        player[p].phys.cVel.x = this.setVelocities1[player[p].timer-1] * player[p].phys.face;
+        setGroundVelocity(p, this.setVelocities1[player[p].timer-1] * player[p].phys.face);
       }
       else if (player[p].timer <= 16) {
-        player[p].phys.cVel.x = 0;
+        setGroundVelocity(p, 0);
       }
       else {
         this.canEdgeCancel = true;
-        player[p].phys.cVel.x = this.setVelocities2[player[p].timer-17] * player[p].phys.face;
+        setGroundVelocity(p, this.setVelocities2[player[p].timer-17] * player[p].phys.face);
       }
       if (player[p].timer === 15){
         player[p].hitboxes.active = [true,true,true,false];

@@ -8,6 +8,17 @@ import {activeStage} from "stages/activeStage";
 
 export default {
   name : "CLIFFATTACKSLOW",
+  // The ledge states drive position by SNAPPING phys.pos from their offset
+  // table every frame, which walks the fighter up the OUTSIDE of the stage
+  // wall. Running ordinary environment collision at the same time sweeps the
+  // ECB from below the lip to above it, hits the wall/ledge corner, and the
+  // resolver pushes the fighter straight back out and down -- getting up off
+  // a ledge dropped you back onto it.
+  //
+  // Melee does not run environment collision here either: the cliff states'
+  // Coll callback is ftCo_CliffCatch_Coll (ftcliffcommon.c:128), a
+  // ledge-specific check, not the ground/wall resolver.
+  ignoreCollision : true,
   offset : [[-70.6,-16.31],[-70.6,-16.09],[-70.6,-15.85],[-70.6,-15.61],[-70.6,-15.38],[-70.6,-15.17],[-70.6,-15.00],[-70.6,-14.89],[-70.6,-14.85],[-70.6,-14.85],[-70.6,-14.85],[-70.6,-14.85],[-70.6,-14.85],[-70.6,-14.85],[-70.6,-14.85],[-70.6,-14.85],[-70.6,-14.85],[-70.6,-14.84],[-70.6,-14.80],[-70.6,-14.74],[-70.6,-14.66],[-70.6,-14.56],[-70.6,-14.44],[-70.6,-14.30],[-70.6,-14.14],[-70.6,-13.97],[-70.6,-13.78],[-70.6,-13.58],[-70.6,-13.36],[-70.6,-13.13],[-70.6,-12.89],[-70.6,-12.63],[-70.6,-12.37],[-70.6,-12.1],[-70.6,-11.82],[-70.6,-11.52],[-70.6,-11.21],[-70.6,-10.87],[-70.6,-10.52],[-70.6,-10.14],[-70.6,-9.73],[-70.6,-9.30],[-70.6,-8.83],[-70.6,-8.33],[-70.6,-7.79],[-70.6,-7.22],[-70.6,-6.6],[-70.44,-5.67],[-70.02,-4.32],[-69.49,-2.82],[-68.96,-1.43],[-68.56,-0.40],[-68.24,0]],
   setVelocities : [0.40,1.02,1.33,1.33,1.02,0.41,0,0,0,0,0,-0.18,-0.37,-0.40,-0.44,-0.43],
   canBeGrabbed : true,

@@ -1,4 +1,5 @@
 import marth from "./index";
+import {SPECIAL_STICK_Y_THRESHOLD} from "physics/meleeCommon";
 import {player} from "../../../main/main";
 import {turnOffHitboxes, reduceByTraction} from "../../../physics/actionStateShortcuts";
 import {sounds} from "../../../main/sfx";
@@ -7,6 +8,8 @@ import {drawVfx} from "../../../main/vfx/drawVfx";
 import {Vec2D} from "../../../main/util/Vec2D";
 import WAIT from "../../shared/moves/WAIT";
 import FALL from "../../shared/moves/FALL";
+import {getGroundVelocity, setGroundVelocity} from "physics/groundMovement";
+import {f32, mul} from "physics/f32";
 export default {
   name: "SIDESPECIALGROUND",
   canPassThrough: false,
@@ -20,7 +23,12 @@ export default {
     player[p].timer = 0;
     player[p].phys.dancingBlade = false;
     player[p].phys.dancingBladeDisable = false;
-    player[p].phys.cVel.x *= 0.2;
+    // ftCo_SpecialS.c:45 -- the side-special entry retains a fraction of the
+    // along-ground speed. meleelight's 0.2 was exactly right; it is
+    // specials_ground_speed_retention (ftCo_DatAttrs +0xB8), so it is read
+    // from the attributes now rather than assumed.
+    setGroundVelocity(p, mul(getGroundVelocity(p),
+                             player[p].charAttributes.specialsGroundSpeedRetention));
     turnOffHitboxes(p);
     player[p].hitboxes.id[0] = player[p].charHitboxes.dbground.id0;
     player[p].hitboxes.id[1] = player[p].charHitboxes.dbground.id1;
@@ -72,7 +80,7 @@ export default {
       return true;
     }
     else if (player[p].phys.dancingBlade) {
-      if (input[p][0].lsY > 0.56) {
+      if (input[p][0].lsY > SPECIAL_STICK_Y_THRESHOLD) {
         marth.SIDESPECIALGROUND2UP.init(p, input);
       }
       else {

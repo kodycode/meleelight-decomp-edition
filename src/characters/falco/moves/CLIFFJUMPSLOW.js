@@ -7,6 +7,17 @@ import {activeStage} from "stages/activeStage";
 
 export default {
   name : "CLIFFJUMPSLOW",
+  // The ledge states drive position by SNAPPING phys.pos from their offset
+  // table every frame, which walks the fighter up the OUTSIDE of the stage
+  // wall. Running ordinary environment collision at the same time sweeps the
+  // ECB from below the lip to above it, hits the wall/ledge corner, and the
+  // resolver pushes the fighter straight back out and down -- getting up off
+  // a ledge dropped you back onto it.
+  //
+  // Melee does not run environment collision here either: the cliff states'
+  // Coll callback is ftCo_CliffCatch_Coll (ftcliffcommon.c:128), a
+  // ledge-specific check, not the ground/wall resolver.
+  ignoreCollision : true,
   offset : [[-70.47,-16.12],[-70.32,-15.85],[-70.15,-15.59],[-69.99,-15.25],[-69.86,-14.72],[-69.77,-13.92],[-69.75,-12.73],[-70.06,-9.84],[-70.58,-5.60],[-70.75,-2.36],[-70.36,-0.85],[-69.83,-0.35],[-69.45,-1.06],[-69.48,-2.49],[-69.73,-3.35],[-69.88,-3.61],[-69.87,-3.72],[-69.73,-3.35],[-69.02,-1.70]],
   canBeGrabbed : true,
   init : function(p,input){
@@ -34,7 +45,8 @@ export default {
     }
   },
   interrupt : function(p,input){
-    if (player[p].timer > 51){
+    // CliffJumpSlow1+2 is 59 for Falco and 53 for Fox. Same copy, same six frames.
+    if (player[p].timer > 57){
       player[p].phys.onLedge = -1;
       player[p].phys.ledgeRegrabCount = false;
       FALL.init(p,input);

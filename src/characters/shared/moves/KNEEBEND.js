@@ -1,4 +1,5 @@
 import {reduceByTraction, actionStates} from "physics/actionStateShortcuts";
+import {TAP_JUMP_RELEASE_THRESHOLD, SPECIAL_STICK_Y_THRESHOLD} from "physics/meleeCommon";
 import {characterSelections, player} from "main/main";
 export default {
   name : "KNEEBEND",
@@ -16,9 +17,16 @@ export default {
     player[p].timer++;
     if (!actionStates[characterSelections[p]].KNEEBEND.interrupt(p,input)){
       reduceByTraction(p,true);
-      // if jumpsquat initiated by stick
+      // ftCo_KneeBend_Check_ShortHop (ftCo_KneeBend.c:44): the test uses
+      // tap_jump_RELEASE_threshold, which is 0.3 -- NOT the 0.6625 that
+      // started the jump, and nothing like the 0.67 that was here. You have to
+      // let the stick most of the way back to centre to short hop off a tap
+      // jump; releasing to 0.5 still gives a full hop.
+      //
+      // The branch on which input started the jumpsquat is Melee's own
+      // (mv.co.kneebend.jump_input), and it already matched.
       if (player[p].phys.jumpSquatType){
-        if (input[p][0].lsY < 0.67){
+        if (input[p][0].lsY < TAP_JUMP_RELEASE_THRESHOLD){
           player[p].phys.jumpType = 0;
         }
       }
@@ -52,7 +60,8 @@ export default {
       actionStates[characterSelections[p]].UPSMASH.init(p,input);
       return true;
     }
-    else if (input[p][0].b && !input[p][1].b && input[p][0].lsY > 0.58){
+    // The special-direction gate, x21C (ftCo_Attack100.c:80). 0.55.
+    else if (input[p][0].b && !input[p][1].b && input[p][0].lsY >= SPECIAL_STICK_Y_THRESHOLD){
       actionStates[characterSelections[p]].UPSPECIAL.init(p,input);
       return true;
     }

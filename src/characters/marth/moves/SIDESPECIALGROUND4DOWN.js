@@ -6,6 +6,7 @@ import {Vec2D} from "../../../main/util/Vec2D";
 import {drawVfx} from "../../../main/vfx/drawVfx";
 import WAIT from "../../shared/moves/WAIT";
 import FALL from "../../shared/moves/FALL";
+import {setGroundVelocity} from "physics/groundMovement";
 export default {
   name: "SIDESPECIALGROUND4DOWN",
   canPassThrough: false,
@@ -24,7 +25,7 @@ export default {
   main: function (p, input) {
     player[p].timer++;
     if (!marth.SIDESPECIALGROUND4DOWN.interrupt(p, input)) {
-      player[p].phys.cVel.x = marth.SIDESPECIALGROUND4DOWN.setVelocities[player[p].timer - 1] * player[p].phys.face;
+      setGroundVelocity(p, marth.SIDESPECIALGROUND4DOWN.setVelocities[player[p].timer - 1] * player[p].phys.face);
       /*13-15
        19-21
        25-27

@@ -6,6 +6,7 @@ import {sounds} from "main/sfx";
 import {turnOffHitboxes} from "physics/actionStateShortcuts";
 import { player} from "main/main";
 import {drawVfx} from "main/vfx/drawVfx";
+import {getGroundVelocity, setGroundVelocity} from "physics/groundMovement";
 
 export default {
   name : "SIDESPECIALGROUND",
@@ -20,7 +21,7 @@ export default {
   init : function(p,input){
     player[p].actionState = "SIDESPECIALGROUND";
     player[p].timer = 0;
-    player[p].phys.cVel.x = 0;
+    setGroundVelocity(p, 0);
     player[p].phys.landingMultiplier = 1.5;
     drawVfx({
       name: "dashDust",
@@ -40,13 +41,16 @@ export default {
       }
 
       if (player[p].timer === 17) {
-        player[p].phys.cVel.x = 16.50*player[p].phys.face;
+        setGroundVelocity(p, 16.50*player[p].phys.face);
       }
 
       if (player[p].timer === 18){
         articles.ILLUSION.init({
           p: p,
-          type: 0,
+          // `type` is the GROUNDED flag -- article.js:155 `if (type)` picks the
+          // grounded knockback. This said 0, so the grounded Phantasm was
+          // dealt the aerial values. Fox's grounded copy has always passed 1.
+          type: 1,
           isFox: false
         });
         if ((input[p][0].b || input[p][1].b) && !input[p][2].b){
@@ -59,12 +63,12 @@ export default {
         }
       }
       if (player[p].timer === 20){
-        player[p].phys.cVel.x = 1.5*player[p].phys.face;
+        setGroundVelocity(p, 1.5*player[p].phys.face);
       }
       if (player[p].timer > 20){
-        player[p].phys.cVel.x -= 0.1*player[p].phys.face;
+        setGroundVelocity(p, getGroundVelocity(p) - (0.1*player[p].phys.face));
         if (player[p].phys.cVel.x*player[p].phys.face < 0) {
-          player[p].phys.cVel.x = 0;
+          setGroundVelocity(p, 0);
         }
       }
 
