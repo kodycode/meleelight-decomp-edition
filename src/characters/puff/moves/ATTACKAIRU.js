@@ -53,7 +53,7 @@ export default {
     }
     else if (player[p].timer > 37) {
       const a = checkForAerials(p, input);
-      if (checkForMultiJump(p,input) && player[p].phys.jumpsUsed < 5) {
+      if (checkForMultiJump(p,input) && player[p].phys.jumpsUsed < player[p].charAttributes.maxJumps - 1) {
         puff.JUMPAERIALF.init(p, input);
         return true;
       }

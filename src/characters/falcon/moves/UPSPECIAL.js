@@ -140,7 +140,10 @@ export default {
         player[p].hitboxes.active = [true,true,false,false];
         player[p].hitboxes.frame = 0;
       }
-      if (player[p].timer > 13 && player[p].timer < 34){
+      // 30, not 34. SpecialHi and SpecialAirHi both terminate_all_hitboxes on
+      // frame 30, so the grab box is live for frames 13-29. Running it to 33
+      // gave Falcon four extra frames of grab on the way up.
+      if (player[p].timer > 13 && player[p].timer < 30){
         player[p].hitboxes.frame++;
       }
       if (player[p].timer === 14){
@@ -149,7 +152,7 @@ export default {
         player[p].hitboxes.active = [true,false,false,false];
         sounds.falcondive.play();
       }
-      if (player[p].timer === 34){
+      if (player[p].timer === 30){
         turnOffHitboxes(p);
       }
     }

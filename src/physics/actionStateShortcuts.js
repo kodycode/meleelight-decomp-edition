@@ -1043,7 +1043,7 @@ export function checkForIASA(p,input,isAerial) {
   if (player[p].timer > player[p].IASATimer) {
     if (isAerial) {
       const a = checkForAerials(p,input);
-      if ((checkForDoubleJump(p, input) && (!player[p].phys.doubleJumped)) || (checkForMultiJump(p, input) && player[p].phys.jumpsUsed < 5 && player[p].charAttributes.multiJump)){
+      if ((checkForDoubleJump(p, input) && (!player[p].phys.doubleJumped)) || (checkForMultiJump(p, input) && player[p].charAttributes.multiJump && player[p].phys.jumpsUsed < player[p].charAttributes.maxJumps - 1)){
         if (input[p][0].lsX*player[p].phys.face < -0.3){
           JUMPAERIALB.init(p,input);
         } else {
@@ -1229,7 +1229,7 @@ export function turboAirborneInterrupt (p,input){
     return true;
   } else if (((input[p][0].x && !input[p][1].x) || (input[p][0].y && !input[p][1].y) ||
       (input[p][0].lsY > 0.7 && input[p][1].lsY <= 0.7)) && (!player[p].phys.doubleJumped ||
-      (player[p].phys.jumpsUsed < 5 && player[p].charAttributes.multiJump))) {
+      (player[p].charAttributes.multiJump && player[p].phys.jumpsUsed < player[p].charAttributes.maxJumps - 1))) {
     turnOffHitboxes(p);
     if (input[p][0].lsX * player[p].phys.face < -0.3) {
       actionStates[characterSelections[p]].JUMPAERIALB.init(p,input);

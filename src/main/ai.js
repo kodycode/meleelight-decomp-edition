@@ -310,7 +310,7 @@ export function generalAI(i) {
     //if (px - NearestFloor(player[i]) < 5 && player[i].phys.kVel > 0) {
     if (player[i].hit.hitstun <= 0) {
       var extra = 0;
-      if (!player[i].phys.doubleJumped || (player[i].phys.jumpsUsed < 5 && player[i].charAttributes.multiJump)) {
+      if (!player[i].phys.doubleJumped || (player[i].charAttributes.multiJump && player[i].phys.jumpsUsed < player[i].charAttributes.maxJumps - 1)) {
         extra = 3
       }
       var randomSeed = Math.floor((Math.random() * (2 + extra)) + 1);
@@ -1499,8 +1499,8 @@ export function CPUrecover (cpu,p) {
       } else if (cpu.phys.pos.x > closest.x) {
         returnInput.lsX = -1.0;
       }
-      if (cS[p] == 0 && ((Math.abs(closest.x - cpu.phys.pos.x) > 25) && (!cpu.phys.doubleJumped || (cpu.phys.jumpsUsed <
-          5 && cpu.charAttributes.multiJump)) && ((closest.y - cpu.phys.pos.y < 5) || ((closest.y - cpu.phys.pos.y <
+      if (cS[p] == 0 && ((Math.abs(closest.x - cpu.phys.pos.x) > 25) && (!cpu.phys.doubleJumped || (cpu.charAttributes.multiJump
+          && cpu.phys.jumpsUsed < cpu.charAttributes.maxJumps - 1)) && ((closest.y - cpu.phys.pos.y < 5) || ((closest.y - cpu.phys.pos.y <
           30 && Math.abs(closest.x - cpu.phys.pos.x) > 40))))) {
         //side-b  
         //console.log("HI");
@@ -1522,7 +1522,7 @@ export function CPUrecover (cpu,p) {
       } else {
         if (cpu.phys.cVel.y <= 0 && ((closest.y - cpu.phys.pos.y > 10 && (Math.abs(closest.x - cpu.phys.pos.x) > 25)) ||
             (closest.y - cpu.phys.pos.y > 25 && (Math.abs(closest.x - cpu.phys.pos.x) <= 25)))) { //is falling
-          if (!cpu.phys.doubleJumped || (cpu.phys.jumpsUsed < 5 && cpu.charAttributes.multiJump)) { //if jumps isn't .jumps thats unintuitive on your part. only tries to jump if it can jump
+          if (!cpu.phys.doubleJumped || (cpu.charAttributes.multiJump && cpu.phys.jumpsUsed < cpu.charAttributes.maxJumps - 1)) { //if jumps isn't .jumps thats unintuitive on your part. only tries to jump if it can jump
             var randomSeed = Math.floor((Math.random() * 1000) + 1);
 
             if (randomSeed <= 300) { //will jump

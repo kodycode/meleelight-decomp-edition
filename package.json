@@ -9,7 +9,7 @@
     "animations": "webpack --config bin/webpack/animations.config.js",
     "serve": "node app",
     "start": "npm run animations && npm run build && npm run serve",
-    "test": "node test/check-parse.mjs && node test/check-strip.mjs && node test/check-undefined.mjs && node test/check-frame-tables.mjs && node test/check-music-volume.mjs && node test/check-data-wired.mjs && node test/check-ground-friction.mjs && node test/check-root-motion.mjs && node test/check-hurtbox-alignment.mjs && node test/check-state-durations.mjs && node test/check-hitbox-ids.mjs && node --import ./test/register.mjs test/physics.test.mjs && node --import ./test/register.mjs test/check-stubs.mjs"
+    "test": "node test/check-parse.mjs && node test/check-strip.mjs && node test/check-undefined.mjs && node test/check-frame-tables.mjs && node test/check-multijump.mjs && node --import ./test/register.mjs test/check-jumpsquat.mjs && node test/check-music-volume.mjs && node test/check-data-wired.mjs && node test/check-ground-friction.mjs && node test/check-root-motion.mjs && node test/check-hurtbox-alignment.mjs && node test/check-state-durations.mjs && node test/check-hitbox-ids.mjs && node --import ./test/register.mjs test/physics.test.mjs && node --import ./test/register.mjs test/check-stubs.mjs"
   },
   "engines": {
     "node": ">=18"

@@ -54,7 +54,7 @@ export function setFrames() {}
 export function setOffsets() {}
 
 export const intangibility = new Proxy({}, { get: () => [] });
-export const actionSounds = new Proxy({}, { get: () => undefined });
+export const actionSounds = new Proxy({}, { get: () => new Proxy({}, { get: () => [] }) });
 export const framesData = new Proxy({}, { get: () => ({}) });
 export const ecb = new Proxy({}, { get: () => [] });
 

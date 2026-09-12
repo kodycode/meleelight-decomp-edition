@@ -39,7 +39,27 @@ export default {
       const t = checkForTilts(p,input);
       const s = checkForSmashes(p,input);
       const j = checkForJump(p,input);
-      if (j[0]){
+      // GRAB OUT OF LANDING LAG. ftCo_Landing_IASA (ftCo_Landing.c:122) runs
+      //
+      //   RETURN_IF(cur_anim_frame < normal_landing_lag);   // 4.0, all five
+      //   RETURN_IF(!mv.co.landing.allow_interrupt);
+      //   RETURN_IF(ftCo_SpecialS_CheckInput(gobj));
+      //   RETURN_IF(ftCo_Attack100_CheckInput(gobj));
+      //   RETURN_IF(ftCo_800D6824(gobj));                   // SpecialN
+      //   RETURN_IF(ftCo_800D68C0(gobj));                   // SpecialLw
+      //   RETURN_IF(ftCo_Catch_CheckInput(gobj));           // <-- was missing
+      //   ... smashes, tilts, jab, shield, taunt, jump, dash, squat, turn, walk
+      //
+      // so the grab sits between the specials and the smashes, and it was
+      // absent here entirely: landing lag was the one grounded state you could
+      // not grab out of. Pressing Z fell through to the shield branch below,
+      // which reaches the grab a frame later through GUARDON's own catch check.
+      if (input[p][0].a && !input[p][1].a
+          && (input[p][0].lA > 0 || input[p][0].rA > 0)){
+        actionStates[characterSelections[p]].GRAB.init(p,input);
+        return true;
+      }
+      else if (j[0]){
         actionStates[characterSelections[p]].KNEEBEND.init(p,j[1],input);
         return true;
       }

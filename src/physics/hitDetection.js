@@ -7,6 +7,7 @@ import {turnOffHitboxes, actionStates, calcShieldstun, calcShieldPushback,
 import {setGroundVelocity} from "physics/groundMovement";
 import {calcHitstun, calcKnockback, applyKnockbackModifiers, calcHitlag,
         calcLaunchAngle, knockbackToVelocity, applyDI} from "physics/knockback";
+import {HITLAG_ELECTRIC_MUL} from "physics/meleeCommon";
 import {drawVfx} from "main/vfx/drawVfx";
 import {Vec2D} from "../main/util/Vec2D";
 import {Segment2D} from "../main/util/Segment2D";
@@ -35,6 +36,24 @@ export function setPhantonQueue(val){
 // ftCommon_CalcHitlag tests `(unsigned)msid - ftCo_MS_Squat <= 1`
 // (ftcommon.c:643) against the RECEIVING fighter's state -- Squat and
 // SquatWait, not SquatRv. The `crouch` flag carries that; see SQUATRV.js.
+// ftColl_8007AEC8 (ftcoll.c:2965):
+//
+//     if (out->element == HitElement_Electric)
+//         fp->x1960_vibrateMult = p_ftCommonData->x1A4;      // 1.5
+//
+// and that multiplier is the third argument to ftCommon_CalcHitlag
+// (ftcommon.c:640), applied to BOTH fighters -- fighter.c:2971 for one side,
+// ftCo_Damage.c:881 for the other. It is reset to 1.0 between hits
+// (fighter.c:3043), so it is per-hit rather than sticky.
+//
+// meleelight's type 4 is electric (createHitBox.js). HITLAG_ELECTRIC_MUL was
+// extracted with the rest of the hitlag block and then never passed to
+// anything, so every electric hit has been freezing 1.5x too briefly. On
+// Fox and Falco's shine that is 4 frames of hitlag against Melee's 6.
+export function electricMul (hitbox) {
+  return (hitbox && hitbox.type === 4) ? HITLAG_ELECTRIC_MUL : 1;
+}
+
 export function isCrouching (n) {
   const st = actionStates[characterSelections[n]][player[n].actionState];
   return !!(st && st.crouch);
@@ -653,7 +672,9 @@ export function executeRegularHit (input, v, a, h, shieldHit, isThrow, drawBounc
       phantomQueue.push([a, v]);
       player[v].phys.phantomDamage = 0.5 * damage;
     } else {
-      player[a].hit.hitlag = calcHitlag(damage, {crouching: isCrouching(a), cap: false});
+      player[a].hit.hitlag = calcHitlag(damage, {crouching: isCrouching(a),
+                                                elementMul: electricMul(hitbox),
+                                                cap: false});
     }
     // ft_80089228 (ft_0881.c:363), then plStale_UpdateStaleMovesFromFighter
     // (plstale.c:41). Order matters: the multiplier is read BEFORE this hit is
@@ -679,7 +700,8 @@ export function executeRegularHit (input, v, a, h, shieldHit, isThrow, drawBounc
     return;
   }
   if (phantom) {
-    player[v].hit.hitlag = calcHitlag(damage, {crouching: isCrouching(v)});
+    player[v].hit.hitlag = calcHitlag(damage, {crouching: isCrouching(v),
+                                              elementMul: electricMul(hitbox)});
     player[v].hit.knockback = 0;
     let frame = player[a].hitboxes.frame;
     if(frame > 1){
@@ -716,7 +738,8 @@ export function executeRegularHit (input, v, a, h, shieldHit, isThrow, drawBounc
     }
   }
 
-  player[v].hit.hitlag = calcHitlag(damage, {crouching: isCrouching(v)});
+  player[v].hit.hitlag = calcHitlag(damage, {crouching: isCrouching(v),
+                                            elementMul: electricMul(hitbox)});
 
   if (!isThrow) {
     if (stageDamage) {

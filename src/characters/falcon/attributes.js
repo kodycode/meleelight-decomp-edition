@@ -108,6 +108,11 @@ setCharAttributes(CHARIDS.FALCON_ID, {
   wallJumpVelX : 1.399999976158142,
   wallJumpVelY : 3.0999999046325684,
   shieldBreakVel : 2.700000047683716,
+  // ftCo_DatAttrs.max_jumps (+0x058). Counts the GROUND jump too, so
+  // the number of midair jumps is maxJumps - 1: 1 for everyone here
+  // except Puff, who gets 5. meleelight had this as the boolean
+  // `multiJump` plus a hardcoded 5 at ten call sites.
+  maxJumps : 2,
   multiJump : false,
   ecbScale : 1.45,
   walkAnimSpeed : 1,
@@ -461,8 +466,25 @@ setOffsets(CHARIDS.FALCON_ID, {
   // motion as well would count the rise twice -- it sends the hitbox to y = -25
   // by the last frame. falcondive1's recorded values are root-referenced for
   // the same reason.
+  // CONSTANT, and only sixteen frames long.
+  //
+  // Both Falcon Dive grab boxes sit on BONE 0 with fixed b_offsets --
+  // (0, 8.59375, 6.0) and (0, 8.59375, 13.33203125), identical in
+  // SpecialHi and SpecialAirHi -- so neither moves relative to the root.
+  // Times Falcon's 0.97 model scale that is (5.82, 8.336) for id0, every
+  // frame it is live.
+  //
+  // This table used to descend to (-1.27, -24.24) over twenty frames,
+  // which is the animation's root motion subtracted a second time. The
+  // note on falcondive1 above describes that exact failure -- "it sends
+  // the hitbox to y = -25 by the last frame" -- as the reason its own
+  // values are root-referenced. The warning was written; the data was not
+  // corrected to match it.
+  //
+  // Sixteen entries, not twenty: the script terminates id1 on frame 14 and
+  // everything on frame 30, so id0 is live for frames 14-29.
   falcondive2 : {
-    id0 : [new Vec3D(5.82,8.3359375,0),new Vec3D(5.472179,5.7804084,-6.660462e-05),new Vec3D(5.120885,3.3240585,5.9204103e-05),new Vec3D(4.7662296,0.9658804,0.00015541077),new Vec3D(4.408325,-1.2951317,0),new Vec3D(4.047282,-3.4599848,-0.0002380327),new Vec3D(3.6832132,-5.529687,-0.00024654673),new Vec3D(3.3162293,-7.5052433,-3.2839776e-05),new Vec3D(2.946442,-9.387661,0.00039579038),new Vec3D(2.5739625,-11.177946,0.0010320462),new Vec3D(2.1989028,-12.877106,0.0018686295),new Vec3D(1.8213744,-14.486147,0.002898243),new Vec3D(1.4414892,-16.006077,0.004113589),new Vec3D(1.0593576,-17.437902,0.005507369),new Vec3D(0.67509174,-18.78263,0.007072286),new Vec3D(0.28880358,-20.041265,0.008801043),new Vec3D(-0.09939575,-21.214817,0.010686341),new Vec3D(-0.48939466,-22.304289,0.012720882),new Vec3D(-0.8810816,-23.31069,0.01489737),new Vec3D(-1.2743454,-24.235031,0.017208505)]
+    id0 : [new Vec3D(5.82,8.3359375,0),new Vec3D(5.82,8.3359375,0),new Vec3D(5.82,8.3359375,0),new Vec3D(5.82,8.3359375,0),new Vec3D(5.82,8.3359375,0),new Vec3D(5.82,8.3359375,0),new Vec3D(5.82,8.3359375,0),new Vec3D(5.82,8.3359375,0),new Vec3D(5.82,8.3359375,0),new Vec3D(5.82,8.3359375,0),new Vec3D(5.82,8.3359375,0),new Vec3D(5.82,8.3359375,0),new Vec3D(5.82,8.3359375,0),new Vec3D(5.82,8.3359375,0),new Vec3D(5.82,8.3359375,0),new Vec3D(5.82,8.3359375,0)]
   },
   falcondivethrowextra : {
     id0 : [new Vec3D(3.638358,10.418413,-0.05748719),new Vec3D(3.6358037,10.429556,-0.05748719)]

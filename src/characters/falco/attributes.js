@@ -95,6 +95,11 @@ setCharAttributes(CHARIDS.FALCO_ID, {
   wallJumpVelX : 1.2999999523162842,
   wallJumpVelY : 3.5999999046325684,
   shieldBreakVel : 3.299999952316284,
+  // ftCo_DatAttrs.max_jumps (+0x058). Counts the GROUND jump too, so
+  // the number of midair jumps is maxJumps - 1: 1 for everyone here
+  // except Puff, who gets 5. meleelight had this as the boolean
+  // `multiJump` plus a hardcoded 5 at ten call sites.
+  maxJumps : 2,
   multiJump : false,
   //ecbScale : 2.3,
   ecbScale : 1,

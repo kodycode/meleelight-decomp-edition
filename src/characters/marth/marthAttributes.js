@@ -112,6 +112,11 @@ import {createHitbox} from "../../main/util/createHitBox";
   wallJumpVelX : 1.2999999523162842,
   wallJumpVelY : 2.4000000953674316,
   shieldBreakVel : 2.5,
+  // ftCo_DatAttrs.max_jumps (+0x058). Counts the GROUND jump too, so
+  // the number of midair jumps is maxJumps - 1: 1 for everyone here
+  // except Puff, who gets 5. meleelight had this as the boolean
+  // `multiJump` plus a hardcoded 5 at ten call sites.
+  maxJumps : 2,
   multiJump : false,
   //ecbScale : 1.8,
   ecbScale : 1,

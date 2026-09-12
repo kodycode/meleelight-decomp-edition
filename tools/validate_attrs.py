@@ -103,6 +103,7 @@ ALIASES = {
     "dAccB":                "dash_accel_base",
     "dMaxV":                "dash_max_velocity",
     "groundMaxHorizontalV": "ground_max_horizontal_velocity",
+    "maxJumps":             "max_jumps",
     "jumpSquat":            "jump_startup_time",
     "jumpHinitV":           "jump_h_initial_velocity",
     "fHopInitV":            "jump_v_initial_velocity",
@@ -188,6 +189,85 @@ def parse_js(path):
                 break
     block = src[i:j]
     return {k: float(v) for k, v in ATTR_RE.findall(block)}
+
+
+# Attributes meleelight stores as an ACTION STATE LENGTH rather than as an
+# attribute. The alias map cannot reach these -- they live in the same file's
+# frames table, keyed by meleelight state name -- but they are per-character
+# disc values like any other and had no standing check.
+#
+#   ftCo_Landing_IASA (ftCo_Landing.c:122) gates every interrupt on
+#       cur_anim_frame < normal_landing_lag
+#   and each LandingAir* state's length is the matching landingair*_lag.
+FRAMES_FROM_ATTRS = {
+    "LANDINGATTACKAIRN":  "landingairn_lag",
+    "LANDINGATTACKAIRF":  "landingairf_lag",
+    "LANDINGATTACKAIRB":  "landingairb_lag",
+    "LANDINGATTACKAIRU":  "landingairhi_lag",
+    "LANDINGATTACKAIRD":  "landingairlw_lag",
+}
+
+FRAMES_RE = re.compile(r'"?([A-Z][A-Z0-9]*)"?\s*:\s*(\d+)\s*,?')
+
+
+def parse_frames(path):
+    """meleelight state name -> frame count, from the setFrames block."""
+    src = open(path, encoding="utf-8").read()
+    m = re.search(r"setFrames\s*\([^,]+,\s*\{", src)
+    if not m:
+        return {}
+    i = src.index("{", m.start())
+    depth = 0
+    for j in range(i, len(src)):
+        if src[j] == "{":
+            depth += 1
+        elif src[j] == "}":
+            depth -= 1
+            if depth == 0:
+                break
+    return {k: int(v) for k, v in FRAMES_RE.findall(src[i:j])}
+
+
+# Disc fields nothing checks, and why. Anything NOT listed here and not in
+# ALIASES or FRAMES_FROM_ATTRS is reported as an unchecked gap, so the coverage
+# number cannot quietly rot as the struct grows.
+UNCHECKED_REASON = {
+    "normal_landing_lag":   "hardcoded 4 in LANDING.js; it is 4.0 on all five",
+    "max_run_brake_frames": "30 on all five; RUNBRAKE ends on its animation first",
+    "slow_walk_max":        "walk animation tier, meleelight has no walk blend",
+    "mid_walk_point":       "walk animation tier",
+    "fast_walk_min":        "walk animation tier",
+    "run_animation_scaling": "animation rate only",
+    "jab_2_input_window":   "jab combo window, hardcoded in the JAB move files",
+    "jab_3_input_window":   "jab combo window, hardcoded in the JAB move files",
+    "rapid_jab_window":     "rapid jab, hardcoded",
+    "ledge_jump_horizontal_velocity": "CLIFFJUMP uses a setVelocities table",
+    "ledge_jump_vertical_velocity":   "CLIFFJUMP uses a setVelocities table",
+    "wall_jump_min_approach_speed":   "not gated; meleelight has a walljump bool",
+    "passivewall_vel_x":    "wall tech velocity, not ported",
+    "passiveceil_vel_x":    "ceiling tech velocity, not ported",
+    "item_throw_velocity_multiplier": "items not ported",
+    "heavy_throw_velocity_multiplier": "items not ported",
+    "damageice_ice_size":   "freezing not ported",
+    "x150_damageice_unk":   "freezing not ported",
+    "x154_damageice_unk":   "freezing not ported",
+    "damageicejump_vel_y":  "freezing not ported",
+    "damageicejump_vel_x_mult": "freezing not ported",
+    "screw_attack_launch_velocity": "Samus item, no such character here",
+    "kirby_b_star_damage":  "Kirby, not present",
+    "warp_star_hitbox_scale": "item, not ported",
+    "clank_animation_length": "clank not ported",
+    "hit_spark_variant":    "cosmetic",
+    "name_tag_height":      "cosmetic",
+    "trophy_scale":         "cosmetic, not in game",
+    "respawn_platform_scale": "cosmetic",
+    "camera_zoom_target_bone": "camera, and meleelight has no camera",
+    "weight_independent_throws_mask": "throws not weight-adjusted here",
+    "unused_0":             "unused on the disc",
+    "xDC": "unnamed in the decomp", "x12C": "unnamed in the decomp",
+    "x13C": "unnamed in the decomp", "x144": "unnamed in the decomp",
+    "x168": "unnamed in the decomp", "x17C": "unnamed in the decomp",
+}
 
 
 def main():
@@ -307,6 +387,33 @@ def main():
             else:
                 mismatches.append((name, key, decomp_name, attrs[key], disc))
 
+    # --- attributes meleelight stores as an action state length -----------
+    # The five LandingAir* states ARE the landingair*_lag values. Checked
+    # here rather than in the alias pass because they live in the frames
+    # table, keyed by meleelight state name, not in setCharAttributes.
+    for name, dat, root, jsrel, _cid in CHARS:
+        path = os.path.join(datdir, dat)
+        js = os.path.join(ml_root, jsrel)
+        if not (os.path.exists(path) and os.path.exists(js)):
+            continue
+        a = Archive(path)
+        base = a.ptr(a.root(root) + CO_ATTRS)
+        if base is None:
+            continue
+        frames = parse_frames(js)
+        for state, field in sorted(FRAMES_FROM_ATTRS.items()):
+            off, _kind = layout[field]
+            disc = struct.unpack(">f", struct.pack(">I", a.d_u32(base + off)))[0]
+            if state not in frames:
+                mismatches.append((name, state, field,
+                                   "absent from setFrames", disc))
+                continue
+            total += 1
+            if float(frames[state]) == float(disc):
+                ok += 1
+            else:
+                mismatches.append((name, state, field, frames[state], disc))
+
     print(f"\n{ok}/{total} character attributes match the disc")
     for name, key, field, got, want in mismatches:
         ext = EXT_ATTRS.get(name, {}).get(key)
@@ -323,6 +430,20 @@ def main():
               f"declared meleelight-local -- NOT CHECKED:")
         for k, who in sorted(unmapped.items()):
             print(f"    {k:24} ({', '.join(who)})")
+    # --- coverage: disc fields nothing checks -----------------------------
+    checked = set(ALIASES.values()) | set(FRAMES_FROM_ATTRS.values())
+    gaps = [n for n in layout
+            if n not in checked and n not in UNCHECKED_REASON]
+    accounted = [n for n in layout if n in UNCHECKED_REASON]
+    print("")
+    print("  coverage: %d of %d ftCo_DatAttrs fields checked, %d"
+          " deliberately not (reasons in UNCHECKED_REASON)"
+          % (len(checked & set(layout)), len(layout), len(accounted)))
+    if gaps:
+        print("  %d field(s) neither checked nor accounted for:" % len(gaps))
+        for n in sorted(gaps, key=lambda n: layout[n][0]):
+            print("    +0x%03X  %s" % (layout[n][0], n))
+
     return 0 if not mismatches else 1
 
 
